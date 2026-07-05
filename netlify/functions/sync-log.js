@@ -4,15 +4,14 @@
 // Scheduled every 6h. Manual runs require the SYNC_SECRET (passed as ?secret=).
 import { getStore } from '@netlify/blobs';
 
-const AREA_BY_BIZMIN = {
-  18:'Mexico',26:'Canada',25:'Cayman Islands',85:'Hawaii',107:'United Kingdom',
-  118:'Switzerland',134:'Argentina',63:'Japan',169:'China',71:'UAE',148:'South Africa'
+// Torn travel-log area codes. Area 6 = China is confirmed from real log data
+// (Pangolin Scales purchases). Others best-effort; country label is not critical
+// since the profit calc is driven by the actual item bought.
+const AREA_MAP = {
+  1:'Torn',2:'Mexico',3:'Cayman Islands',4:'Canada',5:'Hawaii',6:'China',
+  7:'Argentina',8:'Switzerland',9:'Japan',10:'UAE',11:'United Kingdom',12:'South Africa'
 };
-function nearestCountry(mins){
-  let best=null,bd=1e9;
-  for(const[m,c]of Object.entries(AREA_BY_BIZMIN)){const d=Math.abs(+m-mins);if(d<bd){bd=d;best=c}}
-  return bd<=25?best:('Area '+mins+'m');
-}
+function areaName(a){ return AREA_MAP[a] || ('Area '+a); }
 
 async function doSync(KEY){
   const store = getStore('sumbawamba');
@@ -38,10 +37,11 @@ async function doSync(KEY){
       const t=e.details&&e.details.title, d=e.data||{};
       if(t==='Travel depart'){
         const dur=d.duration||0;
-        const country=nearestCountry(Math.round(dur/60));
+        const dest=d.destination!==1?d.destination:d.origin;
+        const country=areaName(dest);
         if(!seen.has(e.id)){newTravel.push({id:e.id,ts:e.timestamp,country,duration:dur,method:d.travel_method||''});seen.add(e.id)}
       }else if(t==='Item abroad buy'){
-        if(!seen.has(e.id)){newBuys.push({id:e.id,ts:e.timestamp,item:d.item,qty:d.quantity,costEach:d.cost_each,area:d.area});seen.add(e.id)}
+        if(!seen.has(e.id)){newBuys.push({id:e.id,ts:e.timestamp,item:d.item,qty:d.quantity,costEach:d.cost_each,area:d.area,country:areaName(d.area)});seen.add(e.id)}
       }
     }
     to=Math.min(...log.map(e=>e.timestamp))-1;
