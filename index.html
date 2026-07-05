@@ -160,7 +160,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
     <button class="tab" onclick="stTab('backtest',this)">🔬 Backtest</button>
   </div>
   <div class="section active" id="st-portfolio"><div id="portfolioContent"><div class="empty"><div class="empty-icon">📊</div><h3>No data loaded</h3><p>Enter your Torn API key and tap Refresh</p></div></div></div>
-  <div class="section" id="st-transactions"><div id="txContent"><div class="empty"><div class="empty-icon">📋</div><h3>No data loaded</h3></div></div></div>
+  <div class="section" id="st-transactions"><div id="txContent"><div class="empty"><div class="empty-icon">📋</div><h3>No data loaded</h3></div></div><div id="stStockHist"></div></div>
   <div class="section" id="st-market"><div id="marketContent"><div class="empty"><div class="empty-icon">🏛️</div><h3>No data loaded</h3></div></div></div>
   <div class="section" id="st-trends"><div id="trendsContent"><div class="empty"><div class="empty-icon">📈</div><h3>No data loaded</h3></div></div></div>
   <div class="section" id="st-smart"><div id="smartContent"><div class="empty"><div class="empty-icon">🧠</div><h3>No data loaded</h3></div></div></div>
@@ -209,11 +209,10 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
   </div>
   <div id="tvCurrentTravel"></div>
   <div id="tvDestChart"></div>
-  <div id="tvStockHist"></div>
   <div id="tvAwards"></div>
   <div class="tw" style="overflow:visible"><div class="tt">🌍 Foreign Item Profit <span class="badge">live market prices</span></div>
-    <div style="padding:10px 14px;font-size:0.8rem;color:var(--text2)">Estimated profit per item = current Torn market price − foreign buy price, minus 0.1% sell fee. Sorted by profit per item. Set your carry capacity to see total trip profit.</div>
-    <div style="padding:0 14px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="font-size:0.75rem;color:var(--text3)">Carry capacity:</label><input type="number" id="tvCapacity" value="15" min="1" max="88" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-family:JetBrains Mono,monospace" onchange="TV.renderItems()"><span style="font-size:0.72rem;color:var(--text3)">items/trip</span><label style="font-size:0.75rem;color:var(--text3);margin-left:8px">Sell discount:</label><input type="range" id="tvDiscount" min="0" max="10" step="0.5" value="5" style="width:100px;accent-color:var(--orange)" oninput="$('tvDiscVal').textContent=this.value+'%';TV.renderItems()"><span id="tvDiscVal" style="font-family:JetBrains Mono,monospace;font-size:0.8rem;color:var(--orange);font-weight:600">5%</span></div>
+    <div style="padding:10px 14px;font-size:0.8rem;color:var(--text2)">Estimated profit per item = current Torn market price − foreign buy price, minus your sell discount. Sorted by profit per item. Set your carry capacity to see total trip profit.</div>
+    <div style="padding:0 14px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="font-size:0.75rem;color:var(--text3)">Carry capacity:</label><input type="number" id="tvCapacity" value="27" min="1" max="88" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-family:JetBrains Mono,monospace" onchange="try{localStorage.setItem('tv_capacity',this.value)}catch(e){};TV.renderItems()"><span style="font-size:0.72rem;color:var(--text3)">items/trip</span><label style="font-size:0.75rem;color:var(--text3);margin-left:8px">Sell discount:</label><input type="range" id="tvDiscount" min="0" max="10" step="0.5" value="5" style="width:100px;accent-color:var(--orange)" oninput="$('tvDiscVal').textContent=this.value+'%';TV.renderItems()"><span id="tvDiscVal" style="font-family:JetBrains Mono,monospace;font-size:0.8rem;color:var(--orange);font-weight:600">5%</span></div>
     <div id="tvItems"></div>
   </div>
 </main>
@@ -321,18 +320,34 @@ const TV=(function(){
     h+='</div></div>';$('tvAwards').innerHTML=h;
   }
 
+  async function loadPrices(){
+    const k=$('apiKey').value.trim();if(!k)return false;
+    for(const it of ITEMS){
+      try{const r=await fetch('https://api.torn.com/v2/market/'+it.id+'/itemmarket?key='+encodeURIComponent(k));const j=await r.json();const im=j.itemmarket||{},l=im.listings||[];PRICES[it.id]={low:l.length?l[0].price:0,avg:(im.item&&im.item.average_price)||0}}catch(e){}
+      await new Promise(r=>setTimeout(r,120));
+    }
+    return true;
+  }
   function renderItems(){
-    const cap=parseInt($('tvCapacity').value)||15;
+    // Restore saved capacity once
+    try{const sv=localStorage.getItem('tv_capacity');if(sv&&$('tvCapacity')&&$('tvCapacity').value==='27'&&!window._capRestored){$('tvCapacity').value=sv;window._capRestored=true}}catch(e){}
+    const cap=parseInt($('tvCapacity').value)||27;
     const disc=parseFloat(($('tvDiscount')||{}).value||5)/100;
+    const havePrices=Object.keys(PRICES).length>0;
+    if(!havePrices){
+      $('tvItems').innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:0.85rem">Market prices not loaded yet.<br><button class="btn btn-primary" style="margin-top:10px" onclick="TV.loadPricesAndRender()">💰 Load Market Prices</button><div style="margin-top:8px;font-size:0.72rem">or tap ⚡ Refresh All up top</div></div>';
+      return;
+    }
     const rows=ITEMS.map(it=>{const p=PRICES[it.id]||{low:0,avg:0};const sell=p.low||p.avg||0;
-      // Prefer real logged buy price if available
       const logged=LOGGED_BUYS[it.id];const buy=logged!=null?logged:it.buy;
       const net=sell*(1-disc);const profit=net-buy;
       return{...it,sell,buy,logged:logged!=null,profit,tripProfit:profit*cap}}).filter(r=>r.sell>0).sort((a,b)=>b.profit-a.profit);
+    if(!rows.length){$('tvItems').innerHTML='<div style="padding:24px;text-align:center;color:var(--text3)">No item prices available. Tap ⚡ Refresh All.</div>';return}
     let h='<table><thead><tr><th>Item</th><th>Country</th><th class="r">Buy</th><th class="r">Sell (mkt)</th><th class="r">Profit/item</th><th class="r">Trip ('+cap+')</th></tr></thead><tbody>';
     for(const r of rows){const pc=r.profit>0?'var(--green)':'var(--red)';const buyTag=r.logged?' <span title="from your log" style="color:var(--cyan);font-size:0.6rem">●</span>':'';h+='<tr><td style="font-weight:600">'+r.name+'</td><td style="color:var(--text2);font-size:0.8rem">'+r.country+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+fmt(r.buy)+buyTag+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(r.sell)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+'">'+(r.profit>=0?'+':'')+fmt(r.profit)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+'">'+(r.tripProfit>=0?'+':'')+fmt(r.tripProfit)+'</td></tr>'}
     h+='</tbody></table><div style="padding:8px 14px;font-size:0.7rem;color:var(--text3)"><span style="color:var(--cyan)">●</span> = buy price from your actual travel log · sell discount '+(disc*100)+'% applied</div>';$('tvItems').innerHTML=h;
   }
+  async function loadPricesAndRender(){$('tvItems').innerHTML='<div style="padding:24px;text-align:center;color:var(--text3)">Loading market prices...</div>';await loadPrices();renderItems()}
 
   // ===== History (from Netlify function backed by Torn log) =====
   async function loadHistory(){
@@ -394,28 +409,28 @@ const TV=(function(){
   function setWindow(w){try{localStorage.setItem('tv_window',w)}catch(e){}renderDestChart()}
 
   function renderStockHist(){
-    if(!HISTORY||!HISTORY.stocks||!HISTORY.stocks.length){$('tvStockHist').innerHTML='';return}
-    // Stock acronym lookup from MKT (loaded by stock module) if available
+    const el=$('stStockHist');if(!el)return;
+    if(!HISTORY||!HISTORY.stocks||!HISTORY.stocks.length){el.innerHTML='';return}
     const acr=(id)=>{try{return (window.STOCK_ACR&&window.STOCK_ACR[id])||('#'+id)}catch(e){return '#'+id}};
     const txs=[...HISTORY.stocks].sort((a,b)=>b.ts-a.ts);
-    // Monthly buy volume for a simple timeline
     const byMonth={};let totalInvested=0;
     for(const t of txs){const dt=new Date(t.ts*1000);const key=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');const val=t.shares*t.price;byMonth[key]=(byMonth[key]||0)+val;totalInvested+=val}
     const months=Object.entries(byMonth).sort((a,b)=>a[0]<b[0]?-1:1);
     const maxM=months.length?Math.max(...months.map(m=>m[1])):1;
-    let h='<div class="tw"><div class="tt">📊 Stock Transaction History <span class="badge badge-p">'+txs.length+' buys</span></div>';
-    h+='<div style="padding:10px 14px;font-size:0.8rem;color:var(--text2)">Total logged purchases: <b style="color:var(--cyan)">'+fmt(totalInvested)+'</b></div>';
-    // Monthly bars
+    const open=window._stockHistOpen?'':'display:none';
+    const caret=window._stockHistOpen?'▼':'▶';
+    let h='<div class="tw" style="margin-top:16px"><div class="tt" style="cursor:pointer;user-select:none" onclick="TV.toggleStockHist()">'+caret+' 📊 Stock Transaction History (Logged) <span class="badge badge-p">'+txs.length+' buys</span></div><div style="'+open+'">';
+    h+='<div style="padding:10px 14px;font-size:0.8rem;color:var(--text2)">Total logged purchases: <b style="color:var(--cyan)">'+fmt(totalInvested)+'</b> · builds up over time from log syncs</div>';
     if(months.length){h+='<div style="padding:0 14px 10px">';for(const[m,v]of months){const pct=v/maxM*100;h+='<div style="display:flex;align-items:center;gap:10px;margin:4px 0;font-size:0.76rem"><span style="width:70px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+m+'</span><div style="flex:1;height:14px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:80px"><div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:4px"></div></div><span style="width:70px;text-align:right;font-family:JetBrains Mono,monospace">'+fmt(v)+'</span></div>'}h+='</div>'}
-    // Recent transactions table
     h+='<table><thead><tr><th>Date</th><th>Stock</th><th class="r">Shares</th><th class="r">Price</th><th class="r">Value</th></tr></thead><tbody>';
     for(const t of txs.slice(0,25)){const dt=new Date(t.ts*1000);h+='<tr><td style="font-size:0.78rem;color:var(--text2)">'+dt.toLocaleDateString()+'</td><td style="font-family:JetBrains Mono,monospace;font-weight:600">'+acr(t.stockId)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fN(t.shares)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(t.price,2)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600">'+fmt(t.shares*t.price)+'</td></tr>'}
     h+='</tbody></table>';
     if(txs.length>25)h+='<div style="padding:8px 14px;font-size:0.7rem;color:var(--text3)">Showing 25 most recent of '+txs.length+'</div>';
-    h+='</div>';$('tvStockHist').innerHTML=h;
+    h+='</div></div>';el.innerHTML=h;
   }
+  function toggleStockHist(){window._stockHistOpen=!window._stockHistOpen;renderStockHist()}
 
-  return{refresh,renderItems,loadHistory,syncNow,renderDestChart,renderStockHist,setWindow};
+  return{refresh,renderItems,loadHistory,syncNow,renderDestChart,renderStockHist,setWindow,loadPricesAndRender,toggleStockHist};
 })();
 </script>
 

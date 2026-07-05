@@ -23,7 +23,7 @@ async function doSync(KEY){
   const seen = new Set(hist.travel.map(t=>t.id).concat(hist.buys.map(b=>b.id)));
 
   // --- 1. Activity log (travel + abroad buys) ---
-  let newTravel=[],newBuys=[],to=null,pages=0,maxPages=5,newestTs=hist.lastTs;
+  let newTravel=[],newBuys=[],to=null,pages=0,maxPages=10,newestTs=hist.lastTs;
   while(pages<maxPages){
     const url='https://api.torn.com/v2/user/log?key='+encodeURIComponent(KEY)+'&limit=100'+(to?'&to='+to:'');
     const r=await fetch(url,{headers:{'User-Agent':'Sumbawamba/1.0'}});
@@ -47,10 +47,12 @@ async function doSync(KEY){
     to=Math.min(...log.map(e=>e.timestamp))-1;
     pages++;
     if(hitOld) break;
+    await new Promise(r=>setTimeout(r,700)); // throttle: stay under Torn rate limit
   }
 
   // --- 2. Stock transactions (from user/stocks) ---
   let newStocks=[];
+  await new Promise(r=>setTimeout(r,700)); // throttle before next endpoint
   try{
     const sr=await fetch('https://api.torn.com/v2/user/stocks?key='+encodeURIComponent(KEY),{headers:{'User-Agent':'Sumbawamba/1.0'}});
     const sj=await sr.json();
