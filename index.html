@@ -158,6 +158,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
     <button class="tab" onclick="stTab('trends',this)">📈 Trends</button>
     <button class="tab" onclick="stTab('smart',this)">🧠 Smart Buy</button>
     <button class="tab" onclick="stTab('backtest',this)">🔬 Backtest</button>
+    <button class="tab" onclick="stTab('swing',this)">📊 Swing Trade</button>
   </div>
   <div class="section active" id="st-portfolio"><div id="portfolioContent"><div class="empty"><div class="empty-icon">📊</div><h3>No data loaded</h3><p>Enter your Torn API key and tap Refresh</p></div></div></div>
   <div class="section" id="st-transactions"><div id="txContent"><div class="empty"><div class="empty-icon">📋</div><h3>No data loaded</h3></div></div><div id="stStockHist"></div></div>
@@ -165,6 +166,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
   <div class="section" id="st-trends"><div id="trendsContent"><div class="empty"><div class="empty-icon">📈</div><h3>No data loaded</h3></div></div></div>
   <div class="section" id="st-smart"><div id="smartContent"><div class="empty"><div class="empty-icon">🧠</div><h3>No data loaded</h3></div></div></div>
   <div class="section" id="st-backtest"><div id="backtestContent"><div class="empty"><div class="empty-icon">🔬</div><h3>No data loaded</h3></div></div></div>
+  <div class="section" id="st-swing"><div id="swingContent"><div class="empty"><div class="empty-icon">📊</div><h3>No data loaded</h3><p>Enter API key and tap Refresh</p></div></div></div>
 </main>
 </div>
 
@@ -205,6 +207,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
     <button class="btn" onclick="TV.loadHistory()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>📊 Load History</span></button>
     <button class="btn btn-primary" onclick="TV.syncNow()"><span>🔄 Sync Log Now</span></button>
+    <button class="btn" onclick="TV.resetHistory()" style="background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.3)"><span>🗑 Reset & Rebuild</span></button>
     <span id="tvSyncInfo" style="font-size:0.72rem;color:var(--text3);align-self:center"></span>
   </div>
   <div id="tvCurrentTravel"></div>
@@ -356,6 +359,19 @@ const TV=(function(){
       $('tvStatusText').textContent='History loaded';$('tvStatusDot').className='status-dot ok';
     }catch(e){$('tvSyncInfo').textContent='⚠ History not available (deploy Netlify functions first)';$('tvStatusText').textContent='No history backend'}
   }
+  async function resetHistory(){
+    if(!confirm('This wipes stored travel history and rebuilds it fresh from your Torn log (fixes old wrong-country data). Continue?'))return;
+    let secret=null;try{secret=localStorage.getItem('sync_secret')}catch(e){}
+    if(!secret){secret=prompt('Enter your sync secret to reset.');if(!secret)return;try{localStorage.setItem('sync_secret',secret)}catch(e){}}
+    $('tvStatusText').textContent='Resetting & rebuilding history...';$('tvStatusDot').className='status-dot loading';
+    try{
+      const r=await fetch('/.netlify/functions/sync-log?reset=1&secret='+encodeURIComponent(secret));
+      const j=await r.json();
+      if(j.error){if(r.status===401||r.status===403){try{localStorage.removeItem('sync_secret')}catch(e){}toast('❌ Wrong secret — cleared');}else toast('❌ '+j.error);return}
+      toast('🗑 Rebuilt: '+j.total.travel+' trips, '+j.total.buys+' buys, '+j.total.stocks+' stock tx');
+      MY_ITEMS=[];PRICES={};await loadHistory();
+    }catch(e){toast('❌ '+e.message)}
+  }
   async function syncNow(){
     let secret=null;
     try{secret=localStorage.getItem('sync_secret')}catch(e){}
@@ -421,7 +437,7 @@ const TV=(function(){
   }
   function toggleStockHist(){window._stockHistOpen=!window._stockHistOpen;renderStockHist()}
 
-  return{refresh,renderItems,loadHistory,syncNow,renderDestChart,renderStockHist,setWindow,loadPricesAndRender,toggleStockHist};
+  return{refresh,renderItems,loadHistory,syncNow,resetHistory,renderDestChart,renderStockHist,setWindow,loadPricesAndRender,toggleStockHist};
 })();
 </script>
 
@@ -1024,6 +1040,107 @@ const ST=(function(){
     h+='</tbody></table></div>';$('backtestContent').innerHTML=h;
   }
 
+  // ======== SWING TRADE ENGINE (RSI + Bollinger + support/target/stop) ========
+  // Deliberate directional bets with defined risk/reward. Separate from wallet parking.
+  function calcBollinger(closes,period,mult){
+    if(closes.length<period)return null;
+    const slice=closes.slice(-period);
+    const mean=slice.reduce((a,b)=>a+b,0)/period;
+    const variance=slice.reduce((a,b)=>a+Math.pow(b-mean,2),0)/period;
+    const sd=Math.sqrt(variance);
+    return{mid:mean,upper:mean+mult*sd,lower:mean-mult*sd,sd,width:(2*mult*sd)/mean};
+  }
+  function findSupport(dc,lookback){
+    // Support = recent significant low the price has bounced off. Use min of recent lows.
+    const lows=dc.slice(-lookback).map(d=>d.low);
+    const support=Math.min(...lows);
+    // Resistance = recent high
+    const highs=dc.slice(-lookback).map(d=>d.high);
+    const resistance=Math.max(...highs);
+    return{support,resistance};
+  }
+  function calcSwing(acr){
+    const dc=HIST_D[acr];if(!dc||dc.length<20)return null;
+    const closes=dc.map(d=>d.close);const price=closes[closes.length-1];
+    const rsi=calcRSI(closes,14);
+    const bb=calcBollinger(closes,20,2);
+    const{support,resistance}=findSupport(dc,20);
+    if(!bb||rsi==null)return null;
+    // Position relative to Bollinger Band (0 = lower band, 1 = upper band)
+    const bbPos=bb.upper>bb.lower?(price-bb.lower)/(bb.upper-bb.lower):0.5;
+    // Distance to support (%) — near support = good entry
+    const distSupport=(price-support)/support;
+    const distResistance=(resistance-price)/price;
+    // ATR-ish daily volatility for target/stop sizing
+    const dRanges=dc.slice(-14).map(d=>(d.high-d.low)/d.close);
+    const atr=dRanges.reduce((a,b)=>a+b,0)/dRanges.length;
+
+    // === SIGNAL SCORING ===
+    let score=0,reasons=[];
+    // Oversold RSI
+    if(rsi<30){score+=3;reasons.push('RSI oversold ('+rsi.toFixed(0)+')')}
+    else if(rsi<40){score+=1.5;reasons.push('RSI low ('+rsi.toFixed(0)+')')}
+    else if(rsi>70){score-=3;reasons.push('RSI overbought ('+rsi.toFixed(0)+')')}
+    else if(rsi>60){score-=1}
+    // Near/below lower Bollinger Band
+    if(bbPos<0.1){score+=3;reasons.push('at lower band')}
+    else if(bbPos<0.25){score+=2;reasons.push('near lower band')}
+    else if(bbPos>0.9){score-=3;reasons.push('at upper band')}
+    else if(bbPos>0.75){score-=1}
+    // Near support
+    if(distSupport<0.01){score+=2.5;reasons.push('at support')}
+    else if(distSupport<0.03){score+=1.5;reasons.push('near support')}
+    // Room to resistance (upside potential)
+    if(distResistance>0.05)score+=1;
+    // Recent bounce (today green after being low)
+    const greenToday=dc[dc.length-1].close>dc[dc.length-1].open;
+    if(greenToday&&bbPos<0.3){score+=1;reasons.push('bouncing')}
+
+    // === TARGET / STOP ===
+    // Target = midline (mean reversion) or resistance, whichever is closer & realistic
+    const targetMid=bb.mid, targetRes=resistance;
+    const target=Math.min(targetMid,targetRes)>price?Math.min(targetMid,targetRes):bb.mid;
+    const targetPct=(target-price)/price;
+    // Stop = below support, sized by ATR
+    const stop=Math.min(support*0.99,price*(1-Math.max(atr*1.5,0.02)));
+    const stopPct=(stop-price)/price;
+    const rr=Math.abs(stopPct)>0?targetPct/Math.abs(stopPct):0; // risk/reward ratio
+
+    let signal,sigColor;
+    if(score>=6&&targetPct>0.02&&rr>=1.5){signal='STRONG BUY';sigColor='var(--green)'}
+    else if(score>=4&&targetPct>0.015){signal='BUY';sigColor='#4ade80'}
+    else if(score>=2){signal='WATCH';sigColor='var(--amber)'}
+    else if(score<=-3){signal='AVOID';sigColor='var(--red)'}
+    else{signal='HOLD';sigColor='var(--text3)'}
+
+    return{acr,price,rsi,bb,bbPos,support,resistance,distSupport,distResistance,atr,score,reasons,target,targetPct,stop,stopPct,rr,signal,sigColor};
+  }
+
+  function renderSwing(){
+    if(!TSD.length){$('swingContent').innerHTML='<div class="empty"><div class="empty-icon">📊</div><h3>No data</h3></div>';return}
+    const rows=TSD.filter(s=>s.stock!=='TCSE').map(s=>{const a=calcSwing(s.stock);return a?{...a,name:s.name}:null}).filter(Boolean).sort((a,b)=>b.score-a.score);
+    let h='<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">📊</span><div><strong>Swing Trade — Directional Bets (Higher Risk)</strong><br>A deliberate risk/reward play, separate from wallet parking. Uses <b>RSI</b> + <b>Bollinger Bands</b> + <b>support levels</b> to find oversold stocks near a floor, with defined <b>target</b> and <b>stop-loss</b>. The R/R column is reward÷risk — aim for ≥1.5. <span style="color:var(--amber)">This is speculative; only bet money you can leave at risk.</span></div></div>';
+    h+='<div class="tw"><div class="tt">📊 Swing Setups <span class="badge badge-g">'+rows.length+'</span></div><table><thead><tr><th>#</th><th>Stock</th><th class="r">Price</th><th class="c">Signal</th><th class="c">RSI</th><th class="c">Band Pos</th><th class="r">Support</th><th class="r">Target</th><th class="r">Stop</th><th class="c">R/R</th><th class="c">Setup</th></tr></thead><tbody>';
+    rows.forEach((r,i)=>{
+      const rsiC=r.rsi<30?'var(--green)':r.rsi>70?'var(--red)':'var(--amber)';
+      const bbC=r.bbPos<0.25?'var(--green)':r.bbPos>0.75?'var(--red)':'var(--text2)';
+      const rrC=r.rr>=1.5?'var(--green)':r.rr>=1?'var(--amber)':'var(--red)';
+      h+='<tr><td style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(i+1)+'</td><td><div class="sn"><span class="a">'+r.acr+'</span><span class="n">'+r.name+'</span></div></td><td class="r">'+fmt(r.price,2)+'</td><td class="c"><span class="rb" style="background:rgba(0,0,0,0.2);color:'+r.sigColor+'">'+r.signal+'</span></td><td class="c" style="font-family:JetBrains Mono,monospace;color:'+rsiC+'">'+r.rsi.toFixed(0)+'</td><td class="c" style="font-family:JetBrains Mono,monospace;color:'+bbC+'">'+(r.bbPos*100).toFixed(0)+'%</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3);font-size:0.78rem">'+fmt(r.support,2)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--green);font-size:0.78rem">'+fmt(r.target,2)+'<br><span style="font-size:0.68rem">+'+(r.targetPct*100).toFixed(1)+'%</span></td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--red);font-size:0.78rem">'+fmt(r.stop,2)+'<br><span style="font-size:0.68rem">'+(r.stopPct*100).toFixed(1)+'%</span></td><td class="c" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+rrC+'">'+r.rr.toFixed(1)+'</td><td class="c" style="font-size:0.68rem;color:var(--text3);max-width:120px;white-space:normal">'+r.reasons.slice(0,2).join(', ')+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    const buys=rows.filter(r=>r.signal==='STRONG BUY'||r.signal==='BUY');
+    if(buys.length){
+      h+='<div class="tw"><div class="tt" style="color:var(--green)">🎯 Actionable Setups</div><div style="padding:14px">';
+      for(const r of buys.slice(0,5)){
+        h+='<div style="padding:10px 0;border-bottom:1px solid rgba(42,53,80,0.4)"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-weight:600;font-size:0.95rem">'+r.acr+' <span style="color:'+r.sigColor+';font-size:0.8rem">'+r.signal+'</span></span><span style="font-family:JetBrains Mono,monospace;color:var(--text2)">R/R '+r.rr.toFixed(1)+'</span></div>';
+        h+='<div style="font-size:0.8rem;color:var(--text2);margin-top:4px;font-family:JetBrains Mono,monospace">Entry '+fmt(r.price,2)+' → Target <span style="color:var(--green)">'+fmt(r.target,2)+'</span> (+'+(r.targetPct*100).toFixed(1)+'%) · Stop <span style="color:var(--red)">'+fmt(r.stop,2)+'</span> ('+(r.stopPct*100).toFixed(1)+'%)</div>';
+        h+='<div style="font-size:0.72rem;color:var(--text3);margin-top:2px">'+r.reasons.join(' · ')+'</div></div>';
+      }
+      h+='</div></div>';
+    }
+    $('swingContent').innerHTML=h;
+  }
+
   // ======== MAIN FETCH ========
   async function fetchAll(){
     const k=$('apiKey').value.trim();if(!k){toast('⚠️ Enter your API key');return}
@@ -1059,7 +1176,7 @@ const ST=(function(){
       await Promise.all([fetchBatch(acrs,'h1',60,HIST_H),fetchBatch(acrs,'d1',60,HIST_D)]);
       // Price changes computed by calcScore directly from candle data
       for(const s of TSD){s.interval={}}
-      renderTrends();renderSmart();
+      renderTrends();renderSmart();renderSwing();
       $('stStatusText').textContent='Running backtests...';BACKTEST={};for(const a of acrs)BACKTEST[a]=runBacktest(a);renderBacktest();
       $('stStatusDot').className='status-dot ok';$('stStatusText').textContent='Wallet engine loaded — overnight & swing parking';$('stLastUpdated').textContent=new Date().toLocaleTimeString();
       toast('✅ Stock data loaded');

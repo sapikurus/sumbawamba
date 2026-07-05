@@ -13,10 +13,11 @@ const AREA_MAP = {
 };
 function areaName(a){ return AREA_MAP[a] || ('Area '+a); }
 
-async function doSync(KEY){
+async function doSync(KEY, reset){
   const store = getStore('sumbawamba');
   let hist;
-  try{ hist = await store.get('history',{type:'json'}) }catch(e){ hist=null }
+  if(reset){ hist=null }
+  else{ try{ hist = await store.get('history',{type:'json'}) }catch(e){ hist=null } }
   if(!hist) hist = {travel:[],buys:[],stocks:[],lastTs:0,lastStockTs:0,updated:0};
   if(!hist.stocks) hist.stocks=[];
   const seen = new Set(hist.travel.map(t=>t.id).concat(hist.buys.map(b=>b.id)));
@@ -103,8 +104,10 @@ export default async (req) => {
   }
 
   try{
-    const result = await doSync(KEY);
-    return new Response(JSON.stringify({ok:true,...result}),{headers:{'Content-Type':'application/json'}});
+    let reset=false;
+    try{ reset=new URL(req.url).searchParams.get('reset')==='1' }catch(e){}
+    const result = await doSync(KEY, reset);
+    return new Response(JSON.stringify({ok:true,reset,...result}),{headers:{'Content-Type':'application/json'}});
   }catch(e){
     return new Response(JSON.stringify({error:String(e.message||e)}),{status:502,headers:{'Content-Type':'application/json'}});
   }
