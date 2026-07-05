@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sumbawamba">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0e17">
+<meta name="application-name" content="Sumbawamba">
+<meta name="description" content="Torn City Stock Trader & Bounty Scout">
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiU3VtYmF3YW1iYSBUb3JuIEhlbHBlciIsInNob3J0X25hbWUiOiJTdW1iYXdhbWJhIiwiZGVzY3JpcHRpb24iOiJUb3JuIENpdHkgU3RvY2sgVHJhZGVyICYgQm91bnR5IFNjb3V0Iiwic3RhcnRfdXJsIjoiLiIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiMwYTBlMTciLCJ0aGVtZV9jb2xvciI6IiMwYTBlMTciLCJpY29ucyI6W3sic3JjIjoiZGF0YTppbWFnZS9zdmcreG1sLCUzQ3N2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMjggMTI4JyUzRSUzQ3JlY3Qgd2lkdGg9JzEyOCcgaGVpZ2h0PScxMjgnIHJ4PScyNCcgZmlsbD0nJTIzMGEwZTE3JyAvJTNFJTNDdGV4dCB4PSc2NCcgeT0nODAnIGZvbnQtc2l6ZT0nNjAnIHRleHQtYW5jaG9yPSdtaWRkbGUnJTNF8J+TiCUzQy90ZXh0JTNFJTNDdGV4dCB4PSc2NCcgeT0nMTEwJyBmb250LXNpemU9JzE2JyBmaWxsPSclMjMwNmI2ZDQnIHRleHQtYW5jaG9yPSdtaWRkbGUnIGZvbnQtZmFtaWx5PSdtb25vc3BhY2UnJTNFU1dCJTNDL3RleHQlM0UlM0Mvc3ZnJTNFIiwic2l6ZXMiOiIxMjh4MTI4IiwidHlwZSI6ImltYWdlL3N2Zyt4bWwiLCJwdXJwb3NlIjoiYW55IG1hc2thYmxlIn1dfQ==">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='24' fill='%230a0e17'/><text x='64' y='80' font-size='60' text-anchor='middle'>📈</text><text x='64' y='110' font-size='16' fill='%2306b6d4' text-anchor='middle' font-family='monospace'>SWB</text></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='24' fill='%230a0e17'/><text x='64' y='80' font-size='60' text-anchor='middle'>📈</text><text x='64' y='110' font-size='16' fill='%2306b6d4' text-anchor='middle' font-family='monospace'>SWB</text></svg>">
+<title>Sumbawamba Torn Helper</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0e17;--bg2:#111827;--bg3:#1a2235;--bg4:#232d42;--border:#2a3550;--border2:#354163;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;--green:#22c55e;--green-bg:rgba(34,197,94,0.08);--green-border:rgba(34,197,94,0.2);--red:#ef4444;--red-bg:rgba(239,68,68,0.08);--red-border:rgba(239,68,68,0.2);--amber:#f59e0b;--amber-bg:rgba(245,158,11,0.08);--blue:#3b82f6;--blue-bg:rgba(59,130,246,0.08);--cyan:#06b6d4;--purple:#a855f7;--accent:#3b82f6;--radius:10px;--radius-sm:6px;--orange:#f97316}
+html{font-size:15px}body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+/* Header */
+.header{position:sticky;top:0;z-index:100;background:rgba(10,14,23,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:10px 16px}
+.header-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.05rem;letter-spacing:-0.5px;white-space:nowrap;flex-shrink:0}
+.logo .name{background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo .sub{font-size:0.65rem;font-weight:400;color:var(--text3);margin-left:4px}
+/* Page nav */
+.page-nav{display:flex;gap:2px;background:var(--bg3);border-radius:var(--radius-sm);padding:2px;flex-shrink:0}
+.page-nav-btn{font-family:'Outfit',sans-serif;font-weight:600;font-size:0.78rem;padding:7px 14px;border:none;border-radius:4px;cursor:pointer;background:transparent;color:var(--text3);transition:all 0.2s;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.page-nav-btn:hover{color:var(--text2)}
+.page-nav-btn.active{background:var(--bg);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.3)}
+.page-nav-btn .nav-icon{font-size:0.9rem}
+/* API bar */
+.api-bar{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.api-input{flex:1;min-width:100px;font-family:'JetBrains Mono',monospace;font-size:0.78rem;padding:7px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;transition:border-color 0.2s}.api-input:focus{border-color:var(--accent)}.api-input::placeholder{color:var(--text3)}
+.api-input.ffs-input{max-width:200px}
+.btn{font-family:'Outfit',sans-serif;font-weight:600;font-size:0.82rem;padding:7px 16px;border:none;border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;box-shadow:0 2px 10px rgba(59,130,246,0.2)}.btn-primary:hover{box-shadow:0 4px 16px rgba(59,130,246,0.35);transform:translateY(-1px)}.btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-primary .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;display:none}.btn-primary.loading .spinner{display:block}.btn-primary.loading .btn-text{display:none}
+.btn-bounty{background:linear-gradient(135deg,var(--orange),var(--red));box-shadow:0 2px 10px rgba(249,115,22,0.2)}.btn-bounty:hover{box-shadow:0 4px 16px rgba(249,115,22,0.35)}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Layout */
+.main{max-width:1400px;margin:0 auto;padding:16px}
+.page{display:none}.page.active{display:block}
+.status-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 0;margin-bottom:12px;font-size:0.8rem;color:var(--text3);flex-wrap:wrap;gap:6px}
+.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px}.status-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}.status-dot.idle{background:var(--text3)}
+/* Cards */
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:20px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;position:relative;overflow:hidden}.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:0;transition:opacity 0.3s}.card:hover::before{opacity:1}
+.card::before{background:linear-gradient(90deg,var(--blue),var(--cyan))}
+.card.revive-card::before{background:linear-gradient(90deg,var(--green),var(--cyan))}.card.bounty-card::before{background:linear-gradient(90deg,var(--orange),var(--red))}.card.target-card::before{background:linear-gradient(90deg,var(--purple),var(--blue))}
+.card-label{font-size:0.7rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-weight:500}.card-value{font-family:'JetBrains Mono',monospace;font-size:1.15rem;font-weight:700}.card-sub{font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--text2);margin-top:2px}.card-value.positive{color:var(--green)}.card-value.negative{color:var(--red)}
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tab{font-family:'Outfit',sans-serif;font-weight:500;font-size:0.82rem;padding:10px 16px;background:none;border:none;color:var(--text3);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.2s}.tab:hover{color:var(--text2)}.tab.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+.section{display:none}.section.active{display:block}
+/* Tables */
+.tw{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+.tt{padding:14px 18px;font-weight:600;font-size:0.9rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.badge{font-size:0.68rem;background:var(--bg4);color:var(--text2);padding:2px 8px;border-radius:20px;font-weight:500;letter-spacing:0.3px;font-family:'JetBrains Mono',monospace}
+.badge-g{background:rgba(34,197,94,0.1);color:var(--green)}.badge-p{background:rgba(168,85,247,0.1);color:var(--purple)}.badge-r{background:var(--red-bg);color:var(--red)}.badge-b{background:var(--blue-bg);color:var(--blue)}.badge-a{background:var(--amber-bg);color:var(--amber)}
+table{width:100%;border-collapse:collapse;min-width:600px}thead{background:var(--bg3)}thead th{font-size:0.7rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;font-weight:500;padding:10px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border)}tbody td{padding:10px 12px;font-size:0.82rem;border-bottom:1px solid rgba(42,53,80,0.4);white-space:nowrap;vertical-align:middle}.r{text-align:right!important}.c{text-align:center!important}
+thead th:first-child,tbody td:first-child{position:sticky;left:0;z-index:2;background:inherit}thead th:first-child{background:var(--bg3)}tbody td:first-child{background:var(--bg2)}tbody tr:hover td:first-child{background:rgba(59,130,246,0.04)}
+tbody tr{transition:background 0.15s}tbody tr:hover{background:rgba(59,130,246,0.04)}tbody tr:last-child td{border-bottom:none}
+.sn{display:flex;flex-direction:column;gap:1px}.sn .a{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:0.85rem;letter-spacing:-0.3px}.sn .n{font-size:0.7rem;color:var(--text3);font-weight:400}
+.chip{display:inline-flex;align-items:center;font-size:0.68rem;font-weight:600;padding:2px 8px;border-radius:20px;font-family:'JetBrains Mono',monospace;letter-spacing:0.3px}
+.cg{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}.cr{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}.ca{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(245,158,11,0.2)}.cb{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(59,130,246,0.2)}.cp{background:rgba(168,85,247,0.08);color:var(--purple);border:1px solid rgba(168,85,247,0.2)}
+a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
+.empty{text-align:center;padding:60px 20px;color:var(--text3)}.empty-icon{font-size:2.5rem;margin-bottom:12px}.empty h3{font-size:1rem;font-weight:500;margin-bottom:6px;color:var(--text2)}.empty p{font-size:0.82rem}
+.info-box{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:0.8rem;color:var(--text2);display:flex;gap:10px;align-items:flex-start;line-height:1.5}.info-box strong{color:var(--text)}
+/* Stock-specific */
+.rsi-bar{width:40px;height:4px;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));border-radius:2px;position:relative;display:inline-block}.rsi-dot{width:6px;height:6px;background:#fff;border-radius:50%;position:absolute;top:-1px;transform:translateX(-50%);box-shadow:0 0 4px rgba(0,0,0,0.5)}
+.macd-chip{font-size:0.7rem;padding:2px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-weight:600;display:inline-block}.macd-bull{background:rgba(34,197,94,0.1);color:var(--green)}.macd-bear{background:rgba(239,68,68,0.1);color:var(--red)}
+.flow-chip{font-size:0.65rem;padding:2px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-weight:600;display:inline-block}.flow-acc{background:rgba(34,197,94,0.1);color:var(--green)}.flow-dist{background:rgba(239,68,68,0.1);color:var(--red)}.flow-neut{background:rgba(100,116,139,0.1);color:var(--text3)}
+.rb{font-size:0.7rem;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-weight:700;display:inline-block}.rsb{background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3)}.rbu{background:rgba(34,197,94,0.08);color:var(--green)}.rh{background:rgba(245,158,11,0.08);color:var(--amber)}.rav{background:rgba(239,68,68,0.08);color:var(--red)}.rsa{background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)}
+.tu{color:var(--green)}.td{color:var(--red)}.tsu{color:#4ade80;font-weight:600}.tsd{color:#f87171;font-weight:600}.tf{color:var(--text3)}
+.tc{font-family:'JetBrains Mono',monospace;font-size:0.78rem}
+.bb-bar{height:3px;background:rgba(100,116,139,0.2);border-radius:2px;margin-top:4px;overflow:hidden}.bb-bar-fill{height:100%;border-radius:2px;transition:width 0.5s}
+.totals-row td{border-top:2px solid var(--border);font-weight:600;padding-top:14px}
+.minichart{display:inline-block;vertical-align:middle}.minichart canvas{border-radius:3px}
+.bt-stat{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.bt-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;flex:1;min-width:120px}
+.bt-card .bt-label{font-size:0.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px}
+.bt-card .bt-val{font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:600}
+.smart-row{background:linear-gradient(90deg,rgba(34,197,94,0.03),transparent)!important}
+.mom-bar{display:inline-flex;align-items:center;gap:3px}.mom-dot{width:6px;height:6px;border-radius:50%;opacity:0.25}.mom-dot.active{opacity:1}.mom-dot.up{background:var(--green)}.mom-dot.dn{background:var(--red)}.mom-dot.flat{background:var(--amber)}.mom-label{font-family:'JetBrains Mono',monospace;font-size:0.68rem;font-weight:600}
+/* Bounty-specific */
+.ff-bar{width:50px;height:8px;border-radius:4px;display:inline-block;vertical-align:middle;margin-right:6px;position:relative;overflow:hidden}.ff-fill{height:100%;border-radius:4px}
+.progress-track{width:100%;max-width:300px;height:10px;background:var(--bg4);border-radius:5px;overflow:hidden;margin-top:8px}.progress-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--cyan),var(--green));transition:width 0.5s}
+/* Responsive */
+@media(max-width:768px){.header-inner{gap:8px;flex-direction:column;align-items:stretch}.api-bar{width:100%}.api-input.ffs-input{max-width:none}.page-nav{justify-content:center}}
+@media(max-width:640px){
+  html{font-size:13px}
+  .header{padding:8px 10px}
+  .main{padding:10px 8px}
+  .summary-grid{grid-template-columns:repeat(2,1fr);gap:6px}
+  .card{padding:10px 12px}.card-value{font-size:0.95rem}.card-label{font-size:0.65rem}
+  .tabs{gap:0;margin-bottom:10px}.tab{padding:8px 10px;font-size:0.75rem}
+  .page-nav-btn{padding:6px 10px;font-size:0.72rem}
+  thead th{font-size:0.6rem;padding:6px 6px;letter-spacing:0.3px}
+  tbody td{padding:6px 6px;font-size:0.72rem}
+  .tw{border-radius:var(--radius-sm);margin-bottom:10px}
+  .tt{padding:10px 12px;font-size:0.82rem}
+  .info-box{font-size:0.72rem;padding:10px 12px;flex-direction:column;gap:6px}
+  .mg{grid-template-columns:1fr!important}
+  .bt-stat{gap:8px}.bt-card{padding:8px 10px;min-width:80px}
+  .sn .a{font-size:0.75rem}.sn .n{font-size:0.62rem}
+  .chip{font-size:0.6rem;padding:1px 6px}
+  .rb{font-size:0.62rem;padding:2px 6px}
+  .empty{padding:30px 16px}.empty-icon{font-size:2rem}
+  .btn{font-size:0.75rem;padding:8px 14px}
+  .api-input{font-size:0.75rem;padding:8px 10px}
+  .ff-bar{width:36px;height:6px}
+  .progress-track{max-width:none}
+  /* Scroll hint for wide tables */
+  .tw::after{content:'← scroll →';display:block;text-align:center;font-size:0.6rem;color:var(--text3);padding:4px 0;opacity:0.5;border-top:1px solid var(--border)}
+}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}.fade-in{animation:fadeIn 0.3s ease both}.delay-1{animation-delay:0.05s}.delay-2{animation-delay:0.1s}.delay-3{animation-delay:0.15s}.delay-4{animation-delay:0.2s}.delay-5{animation-delay:0.25s}.delay-6{animation-delay:0.3s}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 20px;border-radius:var(--radius);font-size:0.85rem;font-weight:500;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none;box-shadow:0 8px 32px rgba(0,0,0,0.4)}.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- ====== HEADER ====== -->
+<header class="header"><div class="header-inner">
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper</span></div>
+  <div class="page-nav">
+    <button class="page-nav-btn active" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
+    <button class="page-nav-btn" onclick="switchPage('bounty',this)"><span class="nav-icon">🎯</span> Bounty Scout</button>
+    <button class="page-nav-btn" onclick="switchPage('energy',this)"><span class="nav-icon">⚡</span> Energy Calc</button>
+    <button class="page-nav-btn" onclick="switchPage('travel',this)"><span class="nav-icon">✈️</span> Travel</button>
+  </div>
+  <div class="api-bar">
+    <input type="password" class="api-input" id="apiKey" placeholder="Torn API key..." autocomplete="off">
+    <input type="password" class="api-input ffs-input" id="ffsKey" placeholder="FFScouter key..." autocomplete="off">
+    <button class="btn btn-primary" id="fetchAllBtn" onclick="fetchAllData()"><div class="spinner"></div><span class="btn-text">⚡ Refresh All</span></button>
+  </div>
+</div></header>
+
+<!-- ====== STOCK TRADER PAGE ====== -->
+<div class="page active" id="page-stocks">
+<main class="main">
+  <div class="status-bar"><div><span class="status-dot idle" id="stStatusDot"></span><span id="stStatusText">Enter API key & tap Refresh</span></div><div id="stLastUpdated"></div></div>
+  <div class="summary-grid">
+    <div class="card fade-in delay-1"><div class="card-label">Portfolio Value</div><div class="card-value" id="totalValue">—</div></div>
+    <div class="card fade-in delay-2"><div class="card-label">Total Invested</div><div class="card-value" id="totalInvested">—</div></div>
+    <div class="card fade-in delay-3"><div class="card-label">Total P/L</div><div class="card-value" id="totalPL">—</div><div class="card-sub" id="totalPLPct"></div></div>
+    <div class="card fade-in delay-4"><div class="card-label">Holdings</div><div class="card-value" id="holdingsCount">—</div></div>
+    <div class="card fade-in delay-5"><div class="card-label">Best Performer</div><div class="card-value" id="bestStock">—</div><div class="card-sub" id="bestStockPct"></div></div>
+    <div class="card fade-in delay-6"><div class="card-label">Worst Performer</div><div class="card-value" id="worstStock">—</div><div class="card-sub" id="worstStockPct"></div></div>
+  </div>
+  <div class="tabs" id="stTabs">
+    <button class="tab active" onclick="stTab('portfolio',this)">Portfolio</button>
+    <button class="tab" onclick="stTab('transactions',this)">Transactions</button>
+    <button class="tab" onclick="stTab('market',this)">All Stocks</button>
+    <button class="tab" onclick="stTab('trends',this)">📈 Trends</button>
+    <button class="tab" onclick="stTab('smart',this)">🧠 Smart Buy</button>
+    <button class="tab" onclick="stTab('backtest',this)">🔬 Backtest</button>
+  </div>
+  <div class="section active" id="st-portfolio"><div id="portfolioContent"><div class="empty"><div class="empty-icon">📊</div><h3>No data loaded</h3><p>Enter your Torn API key and tap Refresh</p></div></div></div>
+  <div class="section" id="st-transactions"><div id="txContent"><div class="empty"><div class="empty-icon">📋</div><h3>No data loaded</h3></div></div></div>
+  <div class="section" id="st-market"><div id="marketContent"><div class="empty"><div class="empty-icon">🏛️</div><h3>No data loaded</h3></div></div></div>
+  <div class="section" id="st-trends"><div id="trendsContent"><div class="empty"><div class="empty-icon">📈</div><h3>No data loaded</h3></div></div></div>
+  <div class="section" id="st-smart"><div id="smartContent"><div class="empty"><div class="empty-icon">🧠</div><h3>No data loaded</h3></div></div></div>
+  <div class="section" id="st-backtest"><div id="backtestContent"><div class="empty"><div class="empty-icon">🔬</div><h3>No data loaded</h3></div></div></div>
+</main>
+</div>
+
+<!-- ====== BOUNTY SCOUT PAGE ====== -->
+<div class="page" id="page-bounty">
+<main class="main">
+  <div class="status-bar"><div><span class="status-dot idle" id="bsStatusDot"></span><span id="bsStatusText">Enter API keys & tap Scout</span></div><div id="bsLastUpdated"></div></div>
+  <div class="summary-grid">
+    <div class="card revive-card fade-in"><div class="card-label">Revive HoF Rank</div><div class="card-value" id="hofRank">—</div><div class="card-sub" id="hofCount"></div></div>
+    <div class="card revive-card fade-in"><div class="card-label">Top 250 Progress</div><div class="card-value" id="hofProgress">—</div><div class="progress-track"><div class="progress-fill" id="hofBar" style="width:0%"></div></div></div>
+    <div class="card bounty-card fade-in"><div class="card-label">Active Bounties</div><div class="card-value" id="totalBounties">—</div><div class="card-sub" id="totalReward"></div></div>
+    <div class="card target-card fade-in"><div class="card-label">Claimable Now</div><div class="card-value" id="claimableCount">—</div><div class="card-sub">Not in hospital</div></div>
+    <div class="card target-card fade-in"><div class="card-label">Revivable Targets</div><div class="card-value" id="revivableCount">—</div><div class="card-sub">In hospital + revivable</div></div>
+  </div>
+  <div class="tabs" id="bsTabs">
+    <button class="tab active" onclick="bsTab('claimable',this)">Claimable Bounties</button>
+    <button class="tab" onclick="bsTab('revivable',this)">Revivable Targets</button>
+    <button class="tab" onclick="bsTab('all',this)">All Bounties</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <span style="font-size:0.8rem;color:var(--text3);font-weight:500">Max Fair Fight:</span>
+    <input type="range" id="ffSlider" min="1" max="5" step="0.25" value="4.5" style="width:120px;accent-color:var(--orange)" oninput="$('ffVal').textContent=this.value;BS.refilter()">
+    <span id="ffVal" style="font-family:JetBrains Mono,monospace;font-size:0.85rem;font-weight:600;color:var(--orange);min-width:28px">4.5</span>
+    <span style="font-size:0.7rem;color:var(--text3)">(hide targets above this FF)</span>
+  </div>
+  <div class="section active" id="bs-claimable"><div id="claimableContent"><div class="empty"><div class="empty-icon">🎯</div><h3>No data loaded</h3><p>Enter your Torn API key and FFScouter key, then tap Scout</p></div></div></div>
+  <div class="section" id="bs-revivable"><div id="revivableContent"><div class="empty"><div class="empty-icon">💉</div><h3>No data loaded</h3></div></div></div>
+  <div class="section" id="bs-all"><div id="allContent"><div class="empty"><div class="empty-icon">📋</div><h3>No data loaded</h3></div></div></div>
+</main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ====== TRAVEL PAGE ====== -->
+<div class="page" id="page-travel">
+<main class="main">
+  <div class="status-bar"><div><span class="status-dot idle" id="tvStatusDot"></span><span id="tvStatusText">Refresh to load travel data</span></div><div id="tvLastUpdated"></div></div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn" onclick="TV.loadHistory()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>📊 Load History</span></button>
+    <button class="btn btn-primary" onclick="TV.syncNow()"><span>🔄 Sync Log Now</span></button>
+    <span id="tvSyncInfo" style="font-size:0.72rem;color:var(--text3);align-self:center"></span>
+  </div>
+  <div id="tvCurrentTravel"></div>
+  <div id="tvDestChart"></div>
+  <div id="tvStockHist"></div>
+  <div id="tvAwards"></div>
+  <div class="tw" style="overflow:visible"><div class="tt">🌍 Foreign Item Profit <span class="badge">live market prices</span></div>
+    <div style="padding:10px 14px;font-size:0.8rem;color:var(--text2)">Estimated profit per item = current Torn market price − foreign buy price, minus 0.1% sell fee. Sorted by profit per item. Set your carry capacity to see total trip profit.</div>
+    <div style="padding:0 14px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="font-size:0.75rem;color:var(--text3)">Carry capacity:</label><input type="number" id="tvCapacity" value="15" min="1" max="88" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-family:JetBrains Mono,monospace" onchange="TV.renderItems()"><span style="font-size:0.72rem;color:var(--text3)">items/trip</span><label style="font-size:0.75rem;color:var(--text3);margin-left:8px">Sell discount:</label><input type="range" id="tvDiscount" min="0" max="10" step="0.5" value="5" style="width:100px;accent-color:var(--orange)" oninput="$('tvDiscVal').textContent=this.value+'%';TV.renderItems()"><span id="tvDiscVal" style="font-family:JetBrains Mono,monospace;font-size:0.8rem;color:var(--orange);font-weight:600">5%</span></div>
+    <div id="tvItems"></div>
+  </div>
+</main>
+</div>
+
+<script>
+// ====== TRAVEL MODULE (TV) ======
+const TV=(function(){
+  // Foreign items by country (signature flowers/plushies + notable). id, name, country, buyPrice(approx foreign shop), type
+  // buyPrice is the foreign shop cost; we compare to live Torn market price.
+  const ITEMS=[
+    {id:263,name:'Crocus',country:'Canada',buy:600,type:'Flower'},
+    {id:269,name:'Monkey Plushie',country:'Mexico',buy:200,type:'Plushie'},
+    {id:260,name:'Dahlia',country:'Mexico',buy:400,type:'Flower'},
+    {id:264,name:'Orchid',country:'Hawaii',buy:1200,type:'Flower'},
+    {id:267,name:'Heather',country:'UK',buy:500,type:'Flower'},
+    {id:268,name:'Red Fox Plushie',country:'UK',buy:250,type:'Plushie'},
+    {id:272,name:'Edelweiss',country:'Switzerland',buy:800,type:'Flower'},
+    {id:273,name:'Chamois Plushie',country:'Switzerland',buy:300,type:'Plushie'},
+    {id:271,name:'Ceibo Flower',country:'Argentina',buy:700,type:'Flower'},
+    {id:258,name:'Jaguar Plushie',country:'Argentina',buy:2000,type:'Plushie'},
+    {id:277,name:'Cherry Blossom',country:'Japan',buy:1500,type:'Flower'},
+    {id:274,name:'Panda Plushie',country:'China',buy:2500,type:'Plushie'},
+    {id:276,name:'Peony',country:'China',buy:2000,type:'Flower'},
+    {id:384,name:'Camel Plushie',country:'UAE',buy:3000,type:'Plushie'},
+    {id:385,name:'Tribulus Omanense',country:'UAE',buy:1800,type:'Flower'},
+    {id:282,name:'African Violet',country:'South Africa',buy:1000,type:'Flower'},
+    {id:281,name:'Lion Plushie',country:'South Africa',buy:1200,type:'Plushie'},
+    {id:215,name:'Kitten Plushie',country:'Cayman',buy:150,type:'Plushie'},
+    {id:266,name:'Nessie Plushie',country:'UK',buy:350,type:'Plushie'}
+  ];
+  let PRICES={};// id -> {low, avg}
+  let HISTORY=null,LOGGED_BUYS={};
+
+  // Award tiers
+  const AWARDS_TIME=[{d:7,name:'Tourist'},{d:31,name:'Frequent Flyer'},{d:365,name:'Globetrotter'}];
+  const AWARDS_TRIPS=[{n:100,name:'Mile High Club'},{n:1000,name:'There And Back'}];
+  const AWARDS_IMPORT=[{n:100,name:'Mule'},{n:1000,name:'Smuggler'},{n:10000,name:'Trafficker'}];
+  const COUNTRIES=[['mexico','Mexico'],['canada','Canada'],['cayman_islands','Cayman Is.'],['hawaii','Hawaii'],['united_kingdom','UK'],['switzerland','Switzerland'],['argentina','Argentina'],['japan','Japan'],['china','China'],['united_arab_emirates','UAE'],['south_africa','South Africa']];
+
+  async function refresh(){
+    const k=$('apiKey').value.trim();if(!k){toast('⚠️ Enter your Torn API key');return}
+    $('tvStatusText').textContent='Loading travel data...';$('tvStatusDot').className='status-dot loading';
+    try{
+      const[travelData,statsData]=await Promise.all([
+        fetch('https://api.torn.com/v2/user/travel?key='+encodeURIComponent(k)).then(r=>r.json()),
+        fetch('https://api.torn.com/v2/user/personalstats?cat=travel&key='+encodeURIComponent(k)).then(r=>r.json())
+      ]);
+      renderCurrentTravel(travelData.travel);
+      renderAwards(statsData.personalstats&&statsData.personalstats.travel);
+      // Load item prices
+      $('tvStatusText').textContent='Loading market prices...';
+      for(const it of ITEMS){
+        try{const r=await fetch('https://api.torn.com/v2/market/'+it.id+'/itemmarket?key='+encodeURIComponent(k));const j=await r.json();const im=j.itemmarket||{},l=im.listings||[];PRICES[it.id]={low:l.length?l[0].price:0,avg:(im.item&&im.item.average_price)||0}}catch(e){}
+        await new Promise(r=>setTimeout(r,120));
+      }
+      renderItems();
+      loadHistory();
+      $('tvStatusDot').className='status-dot ok';$('tvStatusText').textContent='Travel data loaded';$('tvLastUpdated').textContent=new Date().toLocaleTimeString();
+      toast('✈️ Travel data loaded');
+    }catch(e){toast('❌ '+e.message);$('tvStatusText').textContent='Error'}
+  }
+
+  function fmtDur(sec){const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60);if(d>0)return d+'d '+h+'h '+m+'m';if(h>0)return h+'h '+m+'m';return m+'m'}
+
+  function renderCurrentTravel(t){
+    if(!t){$('tvCurrentTravel').innerHTML='';return}
+    let h='<div class="tw"><div class="tt">✈️ Current Status</div><div style="padding:16px">';
+    if(t.destination&&t.destination!=='Torn'&&t.time_left>0){
+      const arr=new Date(t.arrival_at*1000);
+      h+='<div style="font-size:1.1rem;font-weight:600;color:var(--cyan)">'+(t.time_left>0?'✈️ Traveling to '+t.destination:'🏠 In '+t.destination)+'</div>';
+      h+='<div style="margin-top:8px;color:var(--text2);font-size:0.85rem">Method: '+t.method+' · Arrives: '+arr.toLocaleTimeString()+' · <b style="color:var(--amber)">'+fmtDur(t.time_left)+' left</b></div>';
+    }else if(t.destination&&t.destination!=='Torn'){
+      h+='<div style="font-size:1.1rem;font-weight:600;color:var(--green)">🌴 Currently in '+t.destination+'</div><div style="margin-top:6px;color:var(--text2);font-size:0.85rem">Time to shop for imports!</div>';
+    }else{
+      h+='<div style="font-size:1.1rem;font-weight:600;color:var(--text2)">🏠 In Torn City</div><div style="margin-top:6px;color:var(--text3);font-size:0.85rem">Not currently traveling.</div>';
+    }
+    h+='</div></div>';$('tvCurrentTravel').innerHTML=h;
+  }
+
+  function progBar(pct,color){return'<div style="flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:80px"><div style="width:'+Math.min(pct,100)+'%;height:100%;background:'+color+';border-radius:4px"></div></div>'}
+
+  function renderAwards(tv){
+    if(!tv){$('tvAwards').innerHTML='';return}
+    const days=tv.time_spent/86400,trips=tv.total,imports=tv.items_bought;
+    let h='<div class="tw"><div class="tt">🏆 Travel Awards Progress</div><div style="padding:14px">';
+    // Time in air — headline (Globetrotter)
+    const gt=AWARDS_TIME.find(a=>days<a.d)||AWARDS_TIME[AWARDS_TIME.length-1];
+    h+='<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-weight:600">⏱️ Time in Air</span><span style="font-family:JetBrains Mono,monospace;color:var(--cyan)">'+days.toFixed(1)+' days</span></div>';
+    for(const a of AWARDS_TIME){const pct=Math.min(days/a.d*100,100),done=days>=a.d;h+='<div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:0.78rem"><span style="width:110px;color:'+(done?'var(--green)':'var(--text2)')+'">'+(done?'✓ ':'')+a.name+' ('+a.d+'d)</span>'+progBar(pct,done?'var(--green)':'var(--cyan)')+'<span style="width:44px;text-align:right;font-family:JetBrains Mono,monospace;color:'+(done?'var(--green)':'var(--text3)')+'">'+pct.toFixed(0)+'%</span></div>'}
+    if(days<365)h+='<div style="font-size:0.75rem;color:var(--text3);margin-top:6px">'+(365-days).toFixed(1)+' more days of flight time to <b>Globetrotter</b></div>';
+    h+='</div>';
+    // Trips
+    h+='<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-weight:600">🛫 Total Trips</span><span style="font-family:JetBrains Mono,monospace;color:var(--cyan)">'+fN(trips)+'</span></div>';
+    for(const a of AWARDS_TRIPS){const pct=Math.min(trips/a.n*100,100),done=trips>=a.n;h+='<div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:0.78rem"><span style="width:110px;color:'+(done?'var(--green)':'var(--text2)')+'">'+(done?'✓ ':'')+a.name+' ('+fN(a.n)+')</span>'+progBar(pct,done?'var(--green)':'var(--amber)')+'<span style="width:44px;text-align:right;font-family:JetBrains Mono,monospace;color:'+(done?'var(--green)':'var(--text3)')+'">'+pct.toFixed(0)+'%</span></div>'}
+    h+='</div>';
+    // Imports
+    h+='<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-weight:600">📦 Items Imported</span><span style="font-family:JetBrains Mono,monospace;color:var(--cyan)">'+fN(imports)+'</span></div>';
+    for(const a of AWARDS_IMPORT){const pct=Math.min(imports/a.n*100,100),done=imports>=a.n;h+='<div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:0.78rem"><span style="width:110px;color:'+(done?'var(--green)':'var(--text2)')+'">'+(done?'✓ ':'')+a.name+' ('+fN(a.n)+')</span>'+progBar(pct,done?'var(--green)':'var(--purple)')+'<span style="width:44px;text-align:right;font-family:JetBrains Mono,monospace;color:'+(done?'var(--green)':'var(--text3)')+'">'+pct.toFixed(0)+'%</span></div>'}
+    h+='</div>';
+    // Per-country 50-trip merits
+    h+='<div><div style="font-weight:600;margin-bottom:8px">🌐 Per-Country (50 trips each)</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px">';
+    for(const[key,label]of COUNTRIES){const c=tv[key]||0,pct=Math.min(c/50*100,100),done=c>=50;h+='<div style="display:flex;align-items:center;gap:6px;font-size:0.72rem"><span style="width:80px;color:'+(done?'var(--green)':'var(--text2)')+'">'+(done?'✓ ':'')+label+'</span>'+progBar(pct,done?'var(--green)':'var(--cyan)')+'<span style="width:32px;text-align:right;font-family:JetBrains Mono,monospace;color:var(--text3)">'+c+'</span></div>'}
+    h+='</div></div>';
+    h+='</div></div>';$('tvAwards').innerHTML=h;
+  }
+
+  function renderItems(){
+    const cap=parseInt($('tvCapacity').value)||15;
+    const disc=parseFloat(($('tvDiscount')||{}).value||5)/100;
+    const rows=ITEMS.map(it=>{const p=PRICES[it.id]||{low:0,avg:0};const sell=p.low||p.avg||0;
+      // Prefer real logged buy price if available
+      const logged=LOGGED_BUYS[it.id];const buy=logged!=null?logged:it.buy;
+      const net=sell*(1-disc);const profit=net-buy;
+      return{...it,sell,buy,logged:logged!=null,profit,tripProfit:profit*cap}}).filter(r=>r.sell>0).sort((a,b)=>b.profit-a.profit);
+    let h='<table><thead><tr><th>Item</th><th>Country</th><th class="r">Buy</th><th class="r">Sell (mkt)</th><th class="r">Profit/item</th><th class="r">Trip ('+cap+')</th></tr></thead><tbody>';
+    for(const r of rows){const pc=r.profit>0?'var(--green)':'var(--red)';const buyTag=r.logged?' <span title="from your log" style="color:var(--cyan);font-size:0.6rem">●</span>':'';h+='<tr><td style="font-weight:600">'+r.name+'</td><td style="color:var(--text2);font-size:0.8rem">'+r.country+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+fmt(r.buy)+buyTag+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(r.sell)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+'">'+(r.profit>=0?'+':'')+fmt(r.profit)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+'">'+(r.tripProfit>=0?'+':'')+fmt(r.tripProfit)+'</td></tr>'}
+    h+='</tbody></table><div style="padding:8px 14px;font-size:0.7rem;color:var(--text3)"><span style="color:var(--cyan)">●</span> = buy price from your actual travel log · sell discount '+(disc*100)+'% applied</div>';$('tvItems').innerHTML=h;
+  }
+
+  // ===== History (from Netlify function backed by Torn log) =====
+  async function loadHistory(){
+    $('tvStatusText').textContent='Loading stored history...';
+    try{
+      const r=await fetch('/.netlify/functions/get-history');
+      const j=await r.json();
+      HISTORY=j;
+      // Build logged buy-price map (rolling avg of recent buys per item)
+      LOGGED_BUYS={};const acc={};
+      for(const b of (j.buys||[])){if(!acc[b.item])acc[b.item]={sum:0,n:0};acc[b.item].sum+=b.costEach;acc[b.item].n++}
+      for(const id in acc)LOGGED_BUYS[id]=Math.round(acc[id].sum/acc[id].n);
+      renderDestChart();renderStockHist();renderItems();
+      if(j.updated)$('tvSyncInfo').textContent='History updated '+new Date(j.updated*1000).toLocaleString()+' · '+(j.travel||[]).length+' trips, '+(j.buys||[]).length+' buys logged';
+      $('tvStatusText').textContent='History loaded';$('tvStatusDot').className='status-dot ok';
+    }catch(e){$('tvSyncInfo').textContent='⚠ History not available (deploy Netlify functions first)';$('tvStatusText').textContent='No history backend'}
+  }
+  async function syncNow(){
+    let secret=null;
+    try{secret=localStorage.getItem('sync_secret')}catch(e){}
+    if(!secret){
+      secret=prompt('Enter your sync secret (set as SYNC_SECRET in Netlify env vars). Stored on this device only.');
+      if(!secret){toast('Sync cancelled');return}
+      try{localStorage.setItem('sync_secret',secret)}catch(e){}
+    }
+    $('tvStatusText').textContent='Syncing log from Torn...';$('tvStatusDot').className='status-dot loading';
+    try{
+      const r=await fetch('/.netlify/functions/sync-log?secret='+encodeURIComponent(secret));
+      const j=await r.json();
+      if(j.error){
+        if(r.status===401||r.status===403){try{localStorage.removeItem('sync_secret')}catch(e){}toast('❌ Wrong sync secret — cleared, try again');}
+        else toast('❌ Sync: '+j.error);
+        $('tvStatusText').textContent='Sync error';return;
+      }
+      toast('🔄 Synced: +'+j.added.travel+' trips, +'+j.added.buys+' buys, +'+j.added.stocks+' stock tx');
+      await loadHistory();
+    }catch(e){toast('❌ '+e.message);$('tvSyncInfo').textContent='⚠ Sync needs Netlify functions deployed'}
+  }
+  function renderDestChart(){
+    if(!HISTORY||!HISTORY.travel||!HISTORY.travel.length){$('tvDestChart').innerHTML='';return}
+    const win=(typeof localStorage!=='undefined'&&localStorage.getItem('tv_window'))||'month';
+    const now=Date.now()/1000;const spans={day:86400,week:604800,month:2592000,year:31536000};
+    const cutoff=now-(spans[win]||2592000);
+    const trips=HISTORY.travel.filter(t=>t.ts>=cutoff);
+    // Count by country + total flight time
+    const byCountry={};let totalDur=0;
+    for(const t of trips){byCountry[t.country]=(byCountry[t.country]||0)+1;totalDur+=t.duration||0}
+    const sorted=Object.entries(byCountry).sort((a,b)=>b[1]-a[1]);
+    const maxC=sorted.length?sorted[0][1]:1;
+    let h='<div class="tw"><div class="tt">🗺️ Destinations '+'<span class="badge badge-g">'+trips.length+' trips</span>'+'</div>';
+    h+='<div style="padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap">';
+    for(const[w,lbl]of[['day','Day'],['week','Week'],['month','Month'],['year','Year']])h+='<button onclick="TV.setWindow(\''+w+'\')" class="btn" style="font-size:0.7rem;padding:4px 10px;background:'+(win===w?'var(--bg4)':'var(--bg2)')+';color:var(--text);border:1px solid var(--border)">'+lbl+'</button>';
+    h+='</div>';
+    h+='<div style="padding:0 14px 8px;font-size:0.8rem;color:var(--text2)">Total flight time this '+win+': <b style="color:var(--cyan)">'+fmtDur(totalDur)+'</b></div>';
+    h+='<div style="padding:0 14px 14px">';
+    if(sorted.length){for(const[country,count]of sorted){const pct=count/maxC*100;h+='<div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:0.8rem"><span style="width:110px">'+country+'</span><div style="flex:1;height:16px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:100px"><div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:4px"></div></div><span style="width:36px;text-align:right;font-family:JetBrains Mono,monospace;font-weight:600">'+count+'</span></div>'}}else h+='<div style="color:var(--text3);text-align:center;padding:16px">No trips in this window</div>';
+    h+='</div></div>';$('tvDestChart').innerHTML=h;
+  }
+  function setWindow(w){try{localStorage.setItem('tv_window',w)}catch(e){}renderDestChart()}
+
+  function renderStockHist(){
+    if(!HISTORY||!HISTORY.stocks||!HISTORY.stocks.length){$('tvStockHist').innerHTML='';return}
+    // Stock acronym lookup from MKT (loaded by stock module) if available
+    const acr=(id)=>{try{return (window.STOCK_ACR&&window.STOCK_ACR[id])||('#'+id)}catch(e){return '#'+id}};
+    const txs=[...HISTORY.stocks].sort((a,b)=>b.ts-a.ts);
+    // Monthly buy volume for a simple timeline
+    const byMonth={};let totalInvested=0;
+    for(const t of txs){const dt=new Date(t.ts*1000);const key=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');const val=t.shares*t.price;byMonth[key]=(byMonth[key]||0)+val;totalInvested+=val}
+    const months=Object.entries(byMonth).sort((a,b)=>a[0]<b[0]?-1:1);
+    const maxM=months.length?Math.max(...months.map(m=>m[1])):1;
+    let h='<div class="tw"><div class="tt">📊 Stock Transaction History <span class="badge badge-p">'+txs.length+' buys</span></div>';
+    h+='<div style="padding:10px 14px;font-size:0.8rem;color:var(--text2)">Total logged purchases: <b style="color:var(--cyan)">'+fmt(totalInvested)+'</b></div>';
+    // Monthly bars
+    if(months.length){h+='<div style="padding:0 14px 10px">';for(const[m,v]of months){const pct=v/maxM*100;h+='<div style="display:flex;align-items:center;gap:10px;margin:4px 0;font-size:0.76rem"><span style="width:70px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+m+'</span><div style="flex:1;height:14px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:80px"><div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:4px"></div></div><span style="width:70px;text-align:right;font-family:JetBrains Mono,monospace">'+fmt(v)+'</span></div>'}h+='</div>'}
+    // Recent transactions table
+    h+='<table><thead><tr><th>Date</th><th>Stock</th><th class="r">Shares</th><th class="r">Price</th><th class="r">Value</th></tr></thead><tbody>';
+    for(const t of txs.slice(0,25)){const dt=new Date(t.ts*1000);h+='<tr><td style="font-size:0.78rem;color:var(--text2)">'+dt.toLocaleDateString()+'</td><td style="font-family:JetBrains Mono,monospace;font-weight:600">'+acr(t.stockId)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fN(t.shares)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(t.price,2)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600">'+fmt(t.shares*t.price)+'</td></tr>'}
+    h+='</tbody></table>';
+    if(txs.length>25)h+='<div style="padding:8px 14px;font-size:0.7rem;color:var(--text3)">Showing 25 most recent of '+txs.length+'</div>';
+    h+='</div>';$('tvStockHist').innerHTML=h;
+  }
+
+  return{refresh,renderItems,loadHistory,syncNow,renderDestChart,renderStockHist,setWindow};
+})();
+</script>
+
+
+<!-- ====== ENERGY CALCULATOR PAGE ====== -->
+<div class="page" id="page-energy">
+<main class="main">
+  <div class="status-bar"><div><span class="status-dot idle" id="enStatusDot"></span><span id="enStatusText">Configure your settings & calculate</span></div><div id="enLastUpdated"></div></div>
+  <div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">⚡</span><div><strong>Energy Drink Optimizer</strong> — Finds drink combinations that land your total energy on a clean multiple of 5 (so nothing is stranded). The real constraint is <b>booster cooldown</b>: each can adds 2hr, capped at 39hr (≈19 cans), so minimizing cans matters more than cost. Energy can stack past 150 up to 1000, so overshoot is bankable.</div></div>
+  <div class="tw" style="overflow:visible"><div class="tt">⚙️ Settings</div>
+    <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+      <div><label style="font-size:0.75rem;color:var(--text3);display:block;margin-bottom:4px">Current Energy</label><input type="number" id="enCurrent" value="0" min="0" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:JetBrains Mono,monospace"></div>
+      <div><label style="font-size:0.75rem;color:var(--text3);display:block;margin-bottom:4px">Min Target Energy</label><input type="number" id="enTarget" value="150" min="5" step="5" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:JetBrains Mono,monospace"></div>
+      <div><label style="font-size:0.75rem;color:var(--text3);display:block;margin-bottom:4px">Faction Perk Multiplier</label><input type="number" id="enMult" value="1.4" min="1" step="0.05" onchange="EN.renderDrinks()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:JetBrains Mono,monospace"></div>
+      <div><label style="font-size:0.75rem;color:var(--text3);display:block;margin-bottom:4px">Current Cooldown (hrs)</label><input type="number" id="enCooldown" value="0" min="0" max="39" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:JetBrains Mono,monospace"></div>
+      <div><label style="font-size:0.75rem;color:var(--text3);display:block;margin-bottom:4px">Optimize For</label><select id="enGoal" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text)"><option value="fewest">Fewest cans (save cooldown)</option><option value="cheapest">Cheapest cost</option><option value="exact">Least overshoot</option></select></div>
+      <div><label style="font-size:0.75rem;color:var(--text3);display:block;margin-bottom:4px">Seed Drink (optional)</label><select id="enSeed" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text)"><option value="0">None — free optimization</option></select></div>
+    </div>
+    <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" onclick="EN.calculate()" style="flex:1;min-width:200px"><span>⚡ Calculate Combination</span></button><button class="btn" onclick="EN.loadPrices()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>🔄 Load Live Prices</span></button></div>
+  </div>
+  <div class="tw" style="overflow:visible"><div class="tt">🥤 Available Drinks <span class="badge">toggle / set price</span></div>
+    <div id="enDrinkList" style="padding:8px"></div>
+  </div>
+  <div id="enResults"></div>
+</main>
+</div>
+
+<script>
+// ====== ENERGY CALCULATOR MODULE (EN) ======
+const EN=(function(){
+  // Base energy values from Torn API (verified)
+  const DRINKS=[
+    {id:985,name:'Goose Juice',base:5,price:346584,enabled:true},
+    {id:986,name:'Damp Valley',base:10,price:741238,enabled:true},
+    {id:987,name:'Crocozade',base:15,price:1177000,enabled:true},
+    {id:530,name:'Munster',base:20,price:1730999,enabled:true},
+    {id:553,name:'Santa Shooters',base:20,price:1724877,enabled:true},
+    {id:532,name:'Red Cow',base:25,price:2191409,enabled:true},
+    {id:554,name:'Rockstar Rudolph',base:25,price:2300000,enabled:true},
+    {id:533,name:'Taurine Elite',base:30,price:3585000,enabled:true},
+    {id:555,name:'X-MASS',base:30,price:3771000,enabled:true}
+  ];
+  let priceLoaded=false;
+
+  function renderDrinks(){
+    const mult=parseFloat($('enMult').value)||1.4;
+    let h='<table><thead><tr><th>Use</th><th>Drink</th><th class="r">Base E</th><th class="r">Boosted E</th><th class="r">Market Price</th><th class="r">$/Energy</th></tr></thead><tbody>';
+    for(const d of DRINKS){
+      const boosted=Math.round(d.base*mult);
+      const perE=d.price>0?d.price/boosted:0;
+      h+='<tr><td class="c"><input type="checkbox" '+(d.enabled?'checked':'')+' onchange="EN.toggle('+d.id+')" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer"></td>'+
+        '<td><span style="font-weight:600">'+d.name+'</span></td>'+
+        '<td class="r" style="font-family:JetBrains Mono,monospace">'+d.base+'</td>'+
+        '<td class="r" style="font-family:JetBrains Mono,monospace;color:var(--green);font-weight:600">'+boosted+(boosted%5===0?' <span style="color:var(--cyan);font-size:0.7rem">✓5</span>':'')+'</td>'+
+        '<td class="r"><input type="number" value="'+d.price+'" onchange="EN.setPrice('+d.id+',this.value)" style="width:110px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--text);font-family:JetBrains Mono,monospace;font-size:0.78rem;text-align:right"></td>'+
+        '<td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text2)">'+fmt(Math.round(perE))+'</td></tr>';
+    }
+    h+='</tbody></table>';
+    $('enDrinkList').innerHTML=h;
+    // Populate seed dropdown
+    const seedSel=$('enSeed');if(seedSel){const prev=seedSel.value;let opts='<option value="0">None — free optimization</option>';for(const d of DRINKS){if(d.enabled)opts+='<option value="'+d.id+'">'+d.name+' (+'+Math.round(d.base*mult)+'e)</option>'}seedSel.innerHTML=opts;seedSel.value=prev}
+  }
+  function toggle(id){const d=DRINKS.find(x=>x.id===id);if(d)d.enabled=!d.enabled;renderDrinks()}
+  function setPrice(id,val){const d=DRINKS.find(x=>x.id===id);if(d)d.price=parseFloat(val)||0;renderDrinks()}
+
+  async function loadPrices(){
+    const k=$('apiKey').value.trim();if(!k){toast('⚠️ Enter Torn API key on another tab to auto-load prices');return}
+    $('enStatusText').textContent='Loading your status...';
+    // Auto-fill current energy + booster cooldown from API
+    try{
+      const r=await fetch('https://api.torn.com/v2/user/bars?key='+encodeURIComponent(k));
+      const j=await r.json();
+      if(j.bars&&j.bars.energy)$('enCurrent').value=j.bars.energy.current;
+    }catch(e){}
+    try{
+      const r=await fetch('https://api.torn.com/v2/user/cooldowns?key='+encodeURIComponent(k));
+      const j=await r.json();
+      if(j.cooldowns&&typeof j.cooldowns.booster==='number')$('enCooldown').value=(j.cooldowns.booster/3600).toFixed(1);
+    }catch(e){}
+    $('enStatusText').textContent='Loading market prices...';
+    for(const d of DRINKS){
+      try{
+        const r=await fetch('https://api.torn.com/v2/market/'+d.id+'/itemmarket?key='+encodeURIComponent(k));
+        const j=await r.json();
+        const im=j.itemmarket||{},listings=im.listings||[];
+        if(listings.length)d.price=listings[0].price;
+      }catch(e){}
+      await new Promise(r=>setTimeout(r,150));
+    }
+    priceLoaded=true;renderDrinks();$('enStatusText').textContent='Loaded prices + your energy/cooldown';$('enStatusDot').className='status-dot ok';toast('✅ Live data loaded');
+  }
+
+  function calculate(){
+    const cur=parseInt($('enCurrent').value)||0;
+    const target=parseInt($('enTarget').value)||150;
+    const mult=parseFloat($('enMult').value)||1.4;
+    const goal=$('enGoal').value;
+    const curCooldown=parseFloat($('enCooldown').value)||0;
+    const seedId=parseInt($('enSeed').value)||0;
+    const maxCans=Math.max(0,Math.floor((39-curCooldown)/2));// 2hr per can, cap 39hr
+    const need=Math.max(target-cur,5);
+
+    const avail=DRINKS.filter(d=>d.enabled&&d.price>0).map(d=>({...d,boosted:Math.round(d.base*mult)}));
+    if(!avail.length){$('enResults').innerHTML='<div class="info-box" style="border-color:var(--red)"><span>⚠️</span><div>No drinks enabled with prices set.</div></div>';return}
+    if(maxCans<1){$('enResults').innerHTML='<div class="info-box" style="border-color:var(--red)"><span>⚠️</span><div>Booster cooldown is at the cap ('+curCooldown+'hr). You can\'t drink more until it decays below 38hr.</div></div>';return}
+
+    // Seed drink (fixed starting can)
+    const seed=avail.find(d=>d.id===seedId);
+    const seedE=seed?seed.boosted:0,seedCost=seed?seed.price:0,seedCans=seed?1:0;
+
+    // DP over energy: dp[e] = best way to reach exactly e boosted energy (excluding seed)
+    const maxE=need+100;// headroom for overshoot
+    const dp=new Array(maxE+1).fill(null);
+    dp[0]={cost:0,cans:0,combo:{}};
+    for(let e=1;e<=maxE;e++){
+      for(const d of avail){
+        if(e-d.boosted>=0&&dp[e-d.boosted]){
+          const prev=dp[e-d.boosted];
+          if(prev.cans+1>maxCans-seedCans)continue;// respect cooldown cap
+          const nc=prev.cost+d.price,ncans=prev.cans+1;
+          let better=false;
+          if(!dp[e])better=true;
+          else if(goal==='fewest'&&(ncans<dp[e].cans||(ncans===dp[e].cans&&nc<dp[e].cost)))better=true;
+          else if(goal!=='fewest'&&(nc<dp[e].cost||(nc===dp[e].cost&&ncans<dp[e].cans)))better=true;
+          if(better){const combo={...prev.combo};combo[d.id]=(combo[d.id]||0)+1;dp[e]={cost:nc,cans:ncans,combo}}
+        }
+      }
+    }
+    // Candidates: total energy = seedE + e; ending = cur + seedE + e must be mult of 5 and >= target
+    const candidates=[];
+    for(let e=0;e<=maxE;e++){
+      if(!dp[e])continue;
+      const totalE=seedE+e;const ending=cur+totalE;
+      if(ending<target)continue;
+      if(ending%5!==0)continue;
+      const totalCans=seedCans+dp[e].cans;
+      if(totalCans<1||totalCans>maxCans)continue;
+      const combo={...dp[e].combo};if(seed)combo[seed.id]=(combo[seed.id]||0)+1;
+      candidates.push({totalE,ending,overshoot:ending-target,cans:totalCans,cost:dp[e].cost+seedCost,combo});
+    }
+    if(!candidates.length){$('enResults').innerHTML='<div class="info-box" style="border-color:var(--red)"><span>⚠️</span><div>No clean combination found within your cooldown budget ('+maxCans+' cans). Try enabling more drinks, raising the cooldown headroom, or adjusting current energy.</div></div>';return}
+
+    // Math insight
+    const gcd=(a,b)=>b?gcd(b,a%b):a;
+    const boostedVals=avail.map(d=>d.boosted);
+    const g=boostedVals.reduce((a,b)=>gcd(a,b));
+    let insight='';
+    if(g>1){
+      const uniqV=boostedVals.filter((v,i,a)=>a.indexOf(v)===i).sort((a,b)=>a-b);
+      insight='<div class="info-box" style="border-color:var(--cyan);margin-bottom:12px"><span style="font-size:1.1rem">💡</span><div>With your <b>'+mult+'×</b> perk every enabled drink gives a multiple of <b>'+g+'</b>e ('+uniqV.join(', ')+'), so any combo total is a multiple of '+g+'. To land on a multiple of 5, your <b>current energy ('+cur+')</b> + combo must hit it — if overshoot seems unavoidable, waiting for a natural +5 tick to change your current energy often unlocks a tighter fit. Cooldown budget: <b>'+maxCans+' cans</b> ('+(39-curCooldown)+'hr free).</div></div>';
+    }
+
+    if(goal==='exact')candidates.sort((a,b)=>a.overshoot-b.overshoot||a.cans-b.cans||a.cost-b.cost);
+    else if(goal==='fewest')candidates.sort((a,b)=>a.cans-b.cans||a.overshoot-b.overshoot||a.cost-b.cost);
+    else candidates.sort((a,b)=>a.cost-b.cost||a.cans-b.cans||a.overshoot-b.overshoot);
+
+    const top=candidates.slice(0,6);
+    let h=insight+'<div class="tw"><div class="tt">🎯 Optimal Combinations'+(seed?' <span class="badge badge-p">seeded with '+seed.name+'</span>':'')+'</div><table><thead><tr><th>#</th><th>Drinks</th><th class="r">+Energy</th><th class="r">Ending</th><th class="r">Over</th><th class="r">Cans</th><th class="r">Cooldown</th><th class="r">Cost</th></tr></thead><tbody>';
+    top.forEach((c,i)=>{
+      const parts=Object.entries(c.combo).map(([id,qty])=>{const d=avail.find(x=>x.id===+id);return qty+'× '+(d?d.name:'?')}).join(', ');
+      const best=i===0;const cd=curCooldown+c.cans*2;
+      h+='<tr'+(best?' style="background:rgba(34,197,94,0.06)"':'')+'><td class="c">'+(best?'⭐':(i+1))+'</td><td style="white-space:normal;font-size:0.82rem">'+parts+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--green)">+'+c.totalE+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600">'+c.ending+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:'+(c.overshoot===0?'var(--green)':'var(--amber)')+'">+'+c.overshoot+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+c.cans+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:'+(cd>=39?'var(--red)':'var(--text2)')+'">'+cd+'h</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600">'+fmt(c.cost)+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    const best=top[0];
+    h+='<div class="tw"><div class="tt" style="color:var(--green)">⭐ Recommended Plan</div><div style="padding:16px">';
+    h+='<div style="font-size:0.85rem;color:var(--text2);margin-bottom:12px">Go from <b style="color:var(--text)">'+cur+'</b> → <b style="color:var(--green)">'+best.ending+'</b> energy (clean ×5'+(best.overshoot>0?', +'+best.overshoot+' banked':', exactly on target')+'). Adds <b>'+(best.cans*2)+'hr</b> cooldown → <b>'+(curCooldown+best.cans*2)+'hr</b> total.</div>';
+    for(const[id,qty]of Object.entries(best.combo)){const d=avail.find(x=>x.id===+id);if(!d)continue;h+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(42,53,80,0.4)"><span><b>'+qty+'×</b> '+d.name+(d.id===seedId?' <span style="color:var(--purple);font-size:0.7rem">seed</span>':'')+' <span style="color:var(--text3);font-size:0.78rem">(+'+(d.boosted*qty)+'e)</span></span><span style="font-family:JetBrains Mono,monospace;color:var(--text2)">'+fmt(d.price*qty)+'</span></div>'}
+    h+='<div style="display:flex;justify-content:space-between;padding:12px 0 0;font-weight:600"><span>Total ('+best.cans+' cans)</span><span style="font-family:JetBrains Mono,monospace;color:var(--green)">'+fmt(best.cost)+'</span></div>';
+    h+='</div></div>';
+    $('enResults').innerHTML=h;
+    $('enStatusDot').className='status-dot ok';$('enStatusText').textContent='Found '+candidates.length+' clean combos within '+maxCans+'-can budget';
+  }
+
+  function init(){renderDrinks()}
+  return{init,toggle,setPrice,calculate,loadPrices,renderDrinks};
+})();
+</script>
+
+
+<script>
+// ====== SHARED UTILITIES ======
+const $=id=>document.getElementById(id);
+const fmt=(n,d=0)=>n==null||isNaN(n)?'—':'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fN=n=>n==null?'—':Number(n).toLocaleString('en-US');
+const fP=n=>n==null?'—':(n>=0?'+':'')+(n*100).toFixed(2)+'%';
+const cC=n=>n>=0?'cg':'cr';
+const tC=n=>{if(Math.abs(n)<0.001)return'tf';if(n>0.02)return'tsu';if(n<-0.02)return'tsd';return n>0?'tu':'td'};
+const d2s=ts=>new Date(ts*1000).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+const d2f=ts=>new Date(ts*1000).toLocaleString('en-US',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+
+// Page switching
+function switchPage(page,el){
+  document.querySelectorAll('.page-nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  $('page-'+page).classList.add('active');
+}
+function stTab(n,el){$('stTabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('[id^="st-"]').forEach(s=>{if(s.classList.contains('section'))s.classList.remove('active')});el.classList.add('active');$('st-'+n).classList.add('active')}
+function bsTab(n,el){$('bsTabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('[id^="bs-"]').forEach(s=>{if(s.classList.contains('section'))s.classList.remove('active')});el.classList.add('active');$('bs-'+n).classList.add('active')}
+
+// ============================================================
+// STOCK TRADER MODULE (ST)
+// ============================================================
+const ST=(function(){
+  let MKT={},USR={},PF=[],ATX=[],TSD=[],TSM={},HIST_M5={},HIST_M15={},HIST_H={},HIST_D={},BACKTEST={};
+
+  async function tornFetch(ep){
+    const k=$('apiKey').value.trim();if(!k)return null;
+    const s=ep.includes('?')?'&':'?';
+    const r=await fetch('https://api.torn.com/v2/'+ep+s+'key='+encodeURIComponent(k));
+    const d=await r.json();if(d.error){toast('API Error: '+d.error.error);return null}return d;
+  }
+  async function fetchBatch(acronyms,interval,limit,target){
+    const bs=8;
+    for(let i=0;i<acronyms.length;i+=bs){
+      const batch=acronyms.slice(i,i+bs);
+      await Promise.all(batch.map(acr=>
+        fetch('https://tornsy.com/api/'+acr.toLowerCase()+'?interval='+interval+'&limit='+limit)
+          .then(r=>r.json()).then(d=>{
+            target[acr]=(d.data||[]).map(p=>({ts:p[0],open:parseFloat(p[1]),high:parseFloat(p[2]),low:parseFloat(p[3]),close:parseFloat(p[4]),shares:p[5]}));
+          }).catch(()=>{target[acr]=[]})
+      ));
+      $('stStatusText').textContent='Loading '+interval+' candles... '+Math.min(Math.round((i+bs)/acronyms.length*100),100)+'%';
+    }
+  }
+
+  // ======== v4+ ENGINE: Range Reversion + Daily Reversal Gate ========
+  // Core from v4: 30d Range Position is #1 predictor (74-79% WR backtested)
+  // Added: Daily reversal gate prevents premature BUY on still-falling stocks
+  // Added: Drop from weekly peak as bonus signal
+  // All reversal checks use DAILY candles (not hourly) to avoid false short-term signals
+
+  function calcEMA(d,p){const k=2/(p+1);let e=[d[0]];for(let i=1;i<d.length;i++)e.push(d[i]*k+e[i-1]*(1-k));return e}
+  function calcMACD(closes){
+    if(closes.length<35)return null;
+    const e12=calcEMA(closes,12),e26=calcEMA(closes,26),ml=e12.map((v,i)=>v-e26[i]);
+    const sig=calcEMA(ml.slice(25),9),mr=ml[ml.length-1],sr=sig[sig.length-1],hist=mr-sr;
+    const mp=ml[ml.length-2]||mr,sp=sig[sig.length-2]||sr,hp=mp-sp;
+    const cross=(hp<=0&&hist>0)?'bullish':(hp>=0&&hist<0)?'bearish':'none';
+    return{macd:mr,signal:sr,histogram:hist,crossover:cross};
+  }
+  function calcRSI(closes,period){
+    if(closes.length<period+1)return null;
+    let g=[],l=[];for(let i=1;i<closes.length;i++){const d=closes[i]-closes[i-1];g.push(d>0?d:0);l.push(d<0?-d:0)}
+    let ag=g.slice(0,period).reduce((a,b)=>a+b,0)/period,al=l.slice(0,period).reduce((a,b)=>a+b,0)/period;
+    for(let i=period;i<g.length;i++){ag=(ag*(period-1)+g[i])/period;al=(al*(period-1)+l[i])/period}
+    return al===0?100:100-(100/(1+ag/al));
+  }
+
+  // ======== WALLET ENGINE: Short-term capital parking ========
+  // Two strategies: Overnight (≈1d, capital preservation) and Swing (3-7d, drift catcher)
+  // Fee = 0.1% on sell only. Goal: park money safely, withdraw >= entry after fee.
+  // Fuses hourly (volatility/entry timing) + daily (drift/range) candles.
+  const SELL_FEE=0.001;// 0.1% on sell
+
+  function calcWallet(acr,strategy){
+    const dc=HIST_D[acr],hc=HIST_H[acr];
+    if(!dc||dc.length<10)return null;
+    const cD=dc.map(d=>d.close),hiD=dc.map(d=>d.high),loD=dc.map(d=>d.low);
+    const price=cD[cD.length-1];
+    const SELL_FEE=0.001;
+
+    // --- Moving averages (daily) ---
+    const sma=(arr,n)=>arr.length>=n?arr.slice(-n).reduce((a,b)=>a+b,0)/n:null;
+    const ma3=sma(cD,3),ma7=sma(cD,7),ma14=sma(cD,14);
+    // MA slope: is the 7d MA rising or falling?
+    const ma7prev=cD.length>=10?cD.slice(-10,-3).reduce((a,b)=>a+b,0)/7:null;
+    const ma7slope=(ma7&&ma7prev)?(ma7-ma7prev)/ma7prev:0;
+    const aboveMA7=ma7?price>=ma7:true;
+    const maRising=ma7slope>0.0005;// 7d MA trending up
+    const maFalling=ma7slope<-0.0005;// 7d MA trending down
+
+    // --- Hourly volatility, 24h range, hourly MA & trend ---
+    let hVol=null,h24Pos=null,hourlySpiking=false,hMA6=null,hMA24=null,hTrendUp=false,hTrendDown=false,hRSI=null;
+    if(hc&&hc.length>=24){
+      const hcl=hc.map(c=>c.close);
+      const last24=hc.slice(-24);
+      const hRanges=last24.map(c=>(c.high-c.low)/c.close);
+      hVol=hRanges.reduce((a,b)=>a+b,0)/hRanges.length;
+      const h24hi=Math.max(...last24.map(c=>c.high)),h24lo=Math.min(...last24.map(c=>c.low));
+      h24Pos=(h24hi-h24lo)>0?(price-h24lo)/(h24hi-h24lo):0.5;
+      const last6=hc.slice(-6),h6hi=Math.max(...last6.map(c=>c.high)),h6lo=Math.min(...last6.map(c=>c.low));
+      hourlySpiking=(h6hi-h6lo)>0&&(price-h6lo)/(h6hi-h6lo)>0.85;
+      hMA6=sma(hcl,6);hMA24=sma(hcl,24);
+      hTrendUp=hMA6&&hMA24&&hMA6>hMA24&&price>hMA6;// short hourly MA above long + price above = uptrend
+      hTrendDown=hMA6&&hMA24&&hMA6<hMA24&&price<hMA6;
+      hRSI=hcl.length>15?calcRSI(hcl,14):null;
+    }
+
+    // --- Daily range & drift ---
+    const period=Math.min(30,dc.length);
+    const hi30=Math.max(...hiD.slice(-period)),lo30=Math.min(...loD.slice(-period)),rng30=hi30-lo30;
+    const rangePct=rng30>0?(price-lo30)/rng30:0.5;
+    const drift5=cD.length>=6?(price-cD[cD.length-6])/cD[cD.length-6]:0;
+    const drift7=cD.length>=8?(price-cD[cD.length-8])/cD[cD.length-8]:0;
+    const drift1=cD.length>=2?(price-cD[cD.length-2])/cD[cD.length-2]:0;
+    const dRanges=dc.slice(-14).map(c=>(c.high-c.low)/c.close);
+    const dVol=dRanges.reduce((a,b)=>a+b,0)/dRanges.length;
+    const last5=cD.slice(-6);let upDays=0;for(let i=1;i<last5.length;i++)if(last5[i]>last5[i-1])upDays++;
+    const dRSI=cD.length>15?calcRSI(cD,14):null;
+
+    // --- Short timeframe trend (5m/15m) for scalp ---
+    const m5=HIST_M5[acr],m15=HIST_M15[acr];
+    const tfUp=(arr,n)=>{if(!arr||arr.length<n+1)return null;const a=arr.map(c=>c.close);const recent=a[a.length-1],past=a[a.length-1-n];return recent>past};
+    const m5up=tfUp(m5,3),m15up=tfUp(m15,3),h1up=hc&&hc.length>=4?hc[hc.length-1].close>hc[hc.length-4].close:null;
+    let scalpTFs=0,scalpTotal=0;
+    [m5up,m15up,h1up].forEach(v=>{if(v!==null){scalpTotal++;if(v)scalpTFs++}});
+
+    const vol=hVol!=null?hVol:dVol;
+    const rangePos=h24Pos!=null?h24Pos:rangePct;
+
+    // Fee recovery estimate
+    const driftPerDay=strategy==='overnight'?drift1:(drift5/5);
+    const driftPerHour=driftPerDay/24;
+    let feeHours=null;
+    if(driftPerHour>0.000001)feeHours=SELL_FEE/driftPerHour;
+
+    let score=0,risk;
+
+    if(strategy==='overnight'){
+      // Capital preservation. Calm + not falling + not at peak.
+      if(vol<0.001)score+=4;else if(vol<0.002)score+=3;else if(vol<0.004)score+=1.5;else if(vol<0.006)score+=0;else if(vol<0.01)score-=2;else score-=4;
+      if(rangePos<0.30)score+=2.5;else if(rangePos<0.50)score+=2;else if(rangePos<0.70)score+=0.5;else if(rangePos<0.85)score-=1.5;else score-=3;
+      if(drift1>0.001)score+=1.5;else if(drift1>=0)score+=0.5;else if(drift1>-0.003)score-=0.5;else score-=2;
+      if(hourlySpiking)score-=1.5;
+      // TREND FILTER: below falling MA = downtrend, penalize hard
+      if(maFalling&&!aboveMA7)score-=3;
+      else if(maFalling)score-=1.5;
+      else if(maRising&&aboveMA7)score+=1;
+      if(hTrendDown)score-=2;// hourly downtrend confirms bleeding
+      // RSI: oversold stabilizing is ok, overbought in downtrend bad
+      if(hRSI!=null){if(hRSI>70&&(maFalling||hTrendDown))score-=1.5;else if(hRSI<30&&!maFalling)score+=0.5}
+      // RISK TAG — downtrend forces RED regardless of calm
+      const downtrend=(maFalling&&!aboveMA7)||hTrendDown;
+      const volPct=vol*100;
+      if(downtrend)risk='🔴 Downtrend';
+      else if(score>=5&&rangePos<0.6&&volPct<0.3&&!maFalling)risk='🟢 Safe';
+      else if(score>=2.5&&!maFalling)risk='🟡 Mild';
+      else risk='🔴 Risky';
+    }else if(strategy==='swing'){
+      // 3-7d drift catcher. Need up-drift + low entry + MA confirmation.
+      if(drift5>0.01)score+=4;else if(drift5>0.005)score+=3;else if(drift5>0.002)score+=2;else if(drift5>0)score+=1;else if(drift5>-0.005)score-=1;else score-=3;
+      if(rangePct<0.20)score+=2.5;else if(rangePct<0.35)score+=2;else if(rangePct<0.50)score+=1;else if(rangePct<0.70)score-=0.5;else score-=2;
+      if(upDays>=4)score+=1.5;else if(upDays>=3)score+=0.5;else if(upDays<=1)score-=1;
+      if(hourlySpiking)score-=1;
+      // MA confirmation: price above rising MA7 = healthy uptrend
+      if(maRising&&aboveMA7)score+=1.5;else if(maFalling&&!aboveMA7)score-=2;
+      // RSI: avoid overbought tops, favor recovering from oversold
+      if(dRSI!=null){if(dRSI>72)score-=1;else if(dRSI<35&&drift1>0)score+=1}
+      if(drift5<SELL_FEE)score-=1.5;
+      const downtrend=maFalling&&!aboveMA7;
+      if(downtrend)risk='🔴 Downtrend';
+      else if(score>=5&&drift5>0.003&&rangePct<0.5)risk='🟢 Favorable';
+      else if(score>=2.5)risk='🟡 Moderate';
+      else risk='🔴 Risky';
+    }else{
+      // SCALP: beaten-down stock with short timeframes turning up. Higher risk.
+      // Setup: underperforming = low in 30d range OR below MA14
+      const belowAvg=ma14?price<ma14:false;
+      const underperf=rangePct<0.35||belowAvg;
+      if(underperf)score+=2;else score-=1;// must be beaten down to be a reversal candidate
+      // Trigger: short timeframes ticking up
+      if(scalpTotal>0){
+        const frac=scalpTFs/scalpTotal;
+        if(frac>=1)score+=4;// all TFs up
+        else if(frac>=0.66)score+=2.5;
+        else if(frac>=0.5)score+=1;
+        else score-=2;// not actually turning
+      }else{score-=1}// no short data loaded yet
+      // RSI climbing off oversold = confirmation
+      if(hRSI!=null){if(hRSI<30)score+=1.5;else if(hRSI<45&&hTrendUp)score+=1;else if(hRSI>70)score-=1.5}
+      // Hourly uptrend confirms the turn
+      if(hTrendUp)score+=1.5;else if(hTrendDown)score-=2;
+      // Deeper in range = bigger bounce potential
+      if(rangePct<0.15)score+=1;
+      // Risk tags (this is the gamble mode — nothing is "safe")
+      if(score>=6&&scalpTotal>=2&&scalpTFs===scalpTotal&&hTrendUp)risk='🟢 Strong Turn';
+      else if(score>=3.5)risk='🟡 Turning';
+      else risk='🔴 Not Yet';
+    }
+
+    let feeNote;
+    if(feeHours==null)feeNote='⚠ no upward drift';
+    else if(feeHours<=12)feeNote='~'+Math.max(1,Math.round(feeHours))+'h';
+    else if(feeHours<=72)feeNote='~'+(feeHours/24).toFixed(1)+'d';
+    else feeNote='⚠ >3d';
+    const riskColor=risk.includes('🟢')?'var(--green)':risk.includes('🟡')?'var(--amber)':'var(--red)';
+
+    const changes={};
+    if(dc.length>=2)changes.d1=drift1;
+    if(dc.length>=7)changes.w1=(price-cD[cD.length-7])/cD[cD.length-7];
+
+    return{score,price,vol,rangePos,rangePct,range:{pct:rangePct},drift1,drift5,drift7,upDays,hourlySpiking,feeHours,feeNote,risk,riskColor,changes,strategy,
+      ma7,ma14,ma7slope,aboveMA7,maRising,maFalling,hTrendUp,hTrendDown,hRSI,dRSI,scalpTFs,scalpTotal,m5up,m15up,h1up,belowAvg:ma14?price<ma14:false};
+  }
+  // Legacy shim so other code paths don't break
+  function calcScore(acr){const w=calcWallet(acr,'swing');if(!w)return{score:0,signal:'HOLD',range:null,tier:'—',changes:{}};return{score:w.score,signal:w.score>=3?'BUY':w.score<=-2?'AVOID':'HOLD',range:w.range,tier:w.risk,changes:w.changes,vel:null,vol:null,rsi:null,macd:null}}
+
+
+  // ======== BACKTEST v4+ (matches live engine with reversal gate) ========
+  function runBacktest(acr){
+    const dc=HIST_D[acr];if(!dc||dc.length<35)return null;
+    const closes=dc.map(d=>d.close),highs=dc.map(d=>d.high),lows=dc.map(d=>d.low);
+    const opens=dc.map(d=>d.open),vols=dc.map(d=>typeof d.shares==='number'?d.shares:0);
+    let trades=[],wins=0,losses=0,totalReturn=0;
+    for(let i=30;i<closes.length-7;i++){
+      const h30=Math.max(...highs.slice(i-30,i)),l30=Math.min(...lows.slice(i-30,i));
+      const rng=h30-l30;if(rng===0)continue;
+      const pct=(closes[i]-l30)/rng;
+      const roc1=(closes[i]-closes[i-1])/closes[i-1];
+      const roc2=i>=32?(closes[i]-closes[i-2])/closes[i-2]:0;
+      const prevRoc2=i>=34?(closes[i-2]-closes[i-4])/closes[i-4]:0;
+      const accel=roc2-prevRoc2;
+      // Corrected: turning requires last day UP + accel positive (not just decel of a drop)
+      const turning=roc1>0&&accel>0;
+      const greenToday=closes[i]>opens[i],greenYest=closes[i-1]>opens[i-1];
+      // Daily reversal gate — same as live
+      const reversed=greenToday&&(turning||(greenYest&&roc2>0));
+      const volAvg=i>=10?vols.slice(i-10,i).reduce((a,b)=>a+b,0)/10:vols[i];
+      const volUp=vols[i]>volAvg;
+      let sig=0;
+      if(pct<0.15&&reversed&&volUp)sig=3;
+      else if(pct<0.25&&reversed)sig=2;
+      else if(pct<0.30&&reversed)sig=1.5;
+      else if(pct<0.35&&reversed)sig=1;
+      if(sig>=1.5){
+        const entry=closes[i],exit=closes[Math.min(i+7,closes.length-1)],ret=(exit-entry)/entry;
+        trades.push({idx:i,entry,exit,ret,ts:dc[i].ts,pct,sig});
+        totalReturn+=ret;if(ret>0)wins++;else losses++;i+=4;
+      }
+    }
+    if(!trades.length)return{trades:0,winRate:0,avgReturn:0,totalReturn:0,wins:0,losses:0};
+    return{trades:trades.length,winRate:wins/(wins+losses),avgReturn:totalReturn/trades.length,totalReturn,wins,losses};
+  }
+
+  function drawMiniChart(id,data,w=120,h=32){
+    setTimeout(()=>{const c=document.getElementById(id);if(!c)return;c.width=w;c.height=h;const ctx=c.getContext('2d');if(!data||data.length<2)return;
+    const mn=Math.min(...data),mx=Math.max(...data),rng=mx-mn||1,step=w/(data.length-1);
+    ctx.beginPath();ctx.moveTo(0,h-(data[0]-mn)/rng*h);for(let i=1;i<data.length;i++)ctx.lineTo(i*step,h-(data[i]-mn)/rng*h);
+    const col=data[data.length-1]>=data[0]?'34,197,94':'239,68,68';ctx.strokeStyle='rgba('+col+',0.8)';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.lineTo((data.length-1)*step,h);ctx.lineTo(0,h);ctx.closePath();const grad=ctx.createLinearGradient(0,0,0,h);
+    grad.addColorStop(0,'rgba('+col+',0.15)');grad.addColorStop(1,'rgba('+col+',0)');ctx.fillStyle=grad;ctx.fill()},50);
+  }
+
+  // ======== v4+ RENDER HELPERS ========
+  function rangeBar(r){
+    if(!r)return'<span class="tf">—</span>';
+    const pct=(r.pct*100).toFixed(0);
+    const c=r.pct<0.20?'var(--green)':r.pct<0.35?'#4ade80':r.pct<0.50?'var(--amber)':r.pct<0.70?'var(--orange)':'var(--red)';
+    return'<div style="display:inline-flex;align-items:center;gap:6px"><div style="width:50px;height:8px;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));border-radius:4px;position:relative"><div style="position:absolute;top:-2px;left:'+Math.min(Math.max(r.pct*100,2),98)+'%;width:4px;height:12px;background:#fff;border-radius:2px;transform:translateX(-50%);box-shadow:0 0 4px rgba(0,0,0,0.5)"></div></div><span style="font-family:JetBrains Mono,monospace;font-size:0.78rem;font-weight:600;color:'+c+'">'+pct+'%</span></div>';
+  }
+  function velChip(v){
+    if(!v)return'<span class="tf">—</span>';
+    if(v.turning&&v.accel>0)return'<span class="macd-chip macd-bull">⚡ TURNING</span>';
+    if(v.accel>0)return'<span class="macd-chip macd-bull">↗ ACCEL</span>';
+    if(v.roc2>0.001)return'<span style="font-size:0.72rem;color:var(--green)">↑ +</span>';
+    if(v.roc2<-0.003)return'<span class="macd-chip macd-bear">↘ FALLING</span>';
+    if(v.roc2<0)return'<span style="font-size:0.72rem;color:var(--red)">↓ −</span>';
+    return'<span style="font-size:0.72rem;color:var(--text3)">→ flat</span>';
+  }
+  function volChip(v,r){
+    if(!v)return'<span class="tf">—</span>';
+    if(v.spike&&r&&r.pct<0.35)return'<span class="flow-chip flow-acc">📊 SPIKE ↑</span>';
+    if(v.spike)return'<span style="font-size:0.7rem;color:var(--amber)">📊 spike</span>';
+    if(v.rising)return'<span style="font-size:0.7rem;color:var(--green)">↑ rising</span>';
+    return'<span class="flow-chip flow-neut">— normal</span>';
+  }
+  function revGate(r){
+    if(r)return'<span style="font-size:0.68rem;color:var(--green)">✓ confirmed</span>';
+    return'<span style="font-size:0.68rem;color:var(--amber)">⏳ waiting</span>';
+  }
+  function tierChip(tier){
+    if(!tier||tier==='—')return'<span class="tf">—</span>';
+    const m={'🔥 DEEP VALUE':['var(--cyan)','rgba(6,182,212,0.12)'],'🔥 DEEP VALUE ⏳':['var(--cyan)','rgba(6,182,212,0.06)'],'💰 VALUE BUY':['var(--green)','rgba(34,197,94,0.1)'],'💰 VALUE ⏳':['var(--green)','rgba(34,197,94,0.05)'],'📈 BOUNCE':['#4ade80','rgba(74,222,128,0.08)'],'📈 BOUNCE ⏳':['#4ade80','rgba(74,222,128,0.04)'],'👀 WATCH':['var(--amber)','rgba(245,158,11,0.08)'],'👀 WATCH ⏳':['var(--amber)','rgba(245,158,11,0.04)'],'⚠ TOPPED':['var(--red)','rgba(239,68,68,0.1)'],'📉 FADING':['var(--red)','rgba(239,68,68,0.08)'],'↔ NEUTRAL':['var(--text3)','rgba(100,116,139,0.08)']};
+    const[col,bg]=m[tier]||['var(--text3)','rgba(100,116,139,0.08)'];
+    return'<span style="font-size:0.68rem;padding:3px 7px;border-radius:4px;font-family:JetBrains Mono,monospace;font-weight:600;background:'+bg+';color:'+col+'">'+tier+'</span>';
+  }
+  function sigCls(s){return{'STRONG BUY':'rsb',BUY:'rbu',HOLD:'rh',WATCH:'rh',SELL:'rav','STRONG SELL':'rsa'}[s]||'rh'}
+  function rsiGauge(rsi){if(rsi===null)return'<span class="tf">—</span>';const c=rsi<30?'var(--green)':rsi>70?'var(--red)':'var(--amber)';return'<span style="font-family:JetBrains Mono,monospace;font-size:0.75rem;color:'+c+'">'+rsi.toFixed(0)+'</span>'}
+  function macdChip(m){if(!m)return'<span class="tf">—</span>';if(m.crossover==='bullish')return'<span class="macd-chip macd-bull">▲ CROSS</span>';if(m.crossover==='bearish')return'<span class="macd-chip macd-bear">▼ CROSS</span>';if(m.histogram>0)return'<span class="macd-chip macd-bull">▲</span>';return'<span class="macd-chip macd-bear">▼</span>'}
+
+  // ======== DATA PROCESSING ========
+  function processData(){
+    PF=[];ATX=[];
+    for(const sid of Object.keys(USR).sort((a,b)=>+a-+b)){
+      const us=USR[sid],sd=MKT[sid];if(!sd)continue;let tc=0,tb=0;const txL=[];
+      for(const[tid,tx]of Object.entries(us.transactions||{})){tc+=tx.shares*tx.bought_price;tb+=tx.shares;const cv=tx.shares*sd.current_price,iv=tx.shares*tx.bought_price,pl=cv-iv,pp=iv>0?pl/iv:0;txL.push({txId:tid,stockId:sd.stock_id,acr:sd.acronym,name:sd.name,shares:tx.shares,bp:tx.bought_price,cp:sd.current_price,bd:tx.time_bought,inv:iv,cv,pl,pp,dh:Math.floor((Date.now()/1000-tx.time_bought)/86400)});ATX.push(txL[txL.length-1])}
+      const ap=tb>0?tc/tb:0,inv=us.total_shares*ap,cv=us.total_shares*sd.current_price,pl=cv-inv,pp=inv>0?pl/inv:0;
+      const ben=sd.benefit||{},benReq=ben.requirement||0;
+      const bm=benReq>0&&us.total_shares>=benReq,bp=benReq>0?Math.min(us.total_shares/benReq,1):0;const dv=us.dividend||us.benefit||{};
+      PF.push({sid:sd.stock_id,name:sd.name,acr:sd.acronym,ts:us.total_shares,bbr:benReq,bm,bp,ap,cp:sd.current_price,inv,cv,pl,pp,bt:ben.type||'',bd:ben.description||'N/A',bf:ben.frequency||0,dp:dv.progress||0,df:dv.frequency||ben.frequency||0,dr:dv.ready||0,txs:txL});
+    }ATX.sort((a,b)=>b.bd-a.bd);
+  }
+  function updateSummary(){
+    if(!PF.length)return;const tv=PF.reduce((s,p)=>s+p.cv,0),ti=PF.reduce((s,p)=>s+p.inv,0),tp=tv-ti,tpp=ti>0?tp/ti:0;
+    $('totalValue').textContent=fmt(tv);$('totalInvested').textContent=fmt(ti);
+    const e=$('totalPL');e.textContent=fmt(tp);e.className='card-value '+(tp>=0?'positive':'negative');$('totalPLPct').textContent=fP(tpp);
+    $('holdingsCount').textContent=PF.length+' stocks';
+    if(PF.length){const sr=[...PF].sort((a,b)=>b.pp-a.pp);$('bestStock').textContent=sr[0].acr;$('bestStock').className='card-value positive';$('bestStockPct').textContent=fP(sr[0].pp);$('worstStock').textContent=sr[sr.length-1].acr;$('worstStock').className='card-value negative';$('worstStockPct').textContent=fP(sr[sr.length-1].pp)}
+  }
+
+  // ======== TAB RENDERERS ========
+  function renderPortfolio(){
+    if(!PF.length)return;let h='<div class="tw"><div class="tt">Holdings Overview <span class="badge">'+PF.length+' positions</span></div><table><thead><tr><th>Stock</th><th class="r">Shares</th><th>BB Status</th><th class="r">Avg Buy</th><th class="r">Current</th><th class="r">P/L</th><th class="r">Value</th><th>Benefit</th><th>Dividend</th></tr></thead><tbody>';
+    for(const p of PF){const pc=p.pl>=0?'var(--green)':'var(--red)',bc=p.bm?'var(--green)':'var(--amber)',dd=p.dr?'<span class="chip cg">READY</span>':p.dp+'/'+p.df+'d';h+='<tr><td><div class="sn"><span class="a">'+p.acr+'</span><span class="n">'+p.name+'</span></div></td><td class="r">'+fN(p.ts)+'</td><td>'+(p.bm?'<span class="chip cg">✓ MET</span>':'<span class="chip ca">'+(p.bp*100).toFixed(0)+'%</span>')+'<div class="bb-bar"><div class="bb-bar-fill" style="width:'+(p.bp*100).toFixed(0)+'%;background:'+bc+'"></div></div></td><td class="r">'+fmt(p.ap,2)+'</td><td class="r">'+fmt(p.cp,2)+'</td><td class="r"><span style="color:'+pc+';font-family:JetBrains Mono,monospace;font-size:0.8rem">'+fmt(p.pl)+'</span><br><span class="chip '+cC(p.pp)+'">'+fP(p.pp)+'</span></td><td class="r">'+fmt(p.cv)+'</td><td style="font-size:0.75rem;color:var(--text2)">'+p.bd+'</td><td>'+dd+'</td></tr>'}
+    const tv=PF.reduce((s,p)=>s+p.cv,0),ti=PF.reduce((s,p)=>s+p.inv,0),tp=tv-ti,tpp=ti>0?tp/ti:0;
+    h+='<tr class="totals-row"><td>TOTAL</td><td></td><td></td><td class="r">'+fmt(ti)+'</td><td></td><td class="r"><span style="color:'+(tp>=0?'var(--green)':'var(--red)')+';font-family:JetBrains Mono,monospace">'+fmt(tp)+'</span><br><span class="chip '+cC(tpp)+'">'+fP(tpp)+'</span></td><td class="r">'+fmt(tv)+'</td><td></td><td></td></tr></tbody></table></div>';
+    $('portfolioContent').innerHTML=h;
+  }
+  function renderTx(){
+    if(!ATX.length)return;let h='<div class="tw" style="margin-bottom:20px"><div class="tt">All Transactions <span class="badge">'+ATX.length+' buys</span></div><table><thead><tr><th>Date</th><th>Stock</th><th class="r">Shares</th><th class="r">Buy Price</th><th class="r">Current</th><th class="r">Invested</th><th class="r">Value Now</th><th class="r">P/L</th><th class="r">Days</th></tr></thead><tbody>';
+    for(const t of ATX){const pc=t.pl>=0?'var(--green)':'var(--red)';h+='<tr><td style="font-size:0.78rem">'+d2f(t.bd)+'</td><td><span style="font-family:JetBrains Mono,monospace;font-weight:600">'+t.acr+'</span></td><td class="r">'+fN(t.shares)+'</td><td class="r">'+fmt(t.bp,2)+'</td><td class="r">'+fmt(t.cp,2)+'</td><td class="r">'+fmt(t.inv)+'</td><td class="r">'+fmt(t.cv)+'</td><td class="r"><span style="color:'+pc+';font-family:JetBrains Mono,monospace;font-size:0.8rem">'+fmt(t.pl)+'</span><br><span class="chip '+cC(t.pp)+'">'+fP(t.pp)+'</span></td><td class="r">'+t.dh+'d</td></tr>'}h+='</tbody></table></div>';
+    h+='<div class="tw"><div class="tt">Summary by Stock <span class="badge">'+PF.length+'</span></div><table><thead><tr><th>Stock</th><th class="r"># Buys</th><th class="r">Total</th><th class="r">Avg Buy</th><th class="r">Invested</th><th class="r">Current Val</th><th class="r">P/L</th><th class="r">First Buy</th><th class="r">Days</th></tr></thead><tbody>';
+    for(const p of PF){const tx=p.txs,fb=Math.min(...tx.map(t=>t.bd)),dh=Math.floor((Date.now()/1000-fb)/86400),pc=p.pl>=0?'var(--green)':'var(--red)';h+='<tr><td><div class="sn"><span class="a">'+p.acr+'</span><span class="n">'+p.name+'</span></div></td><td class="r">'+tx.length+'</td><td class="r">'+fN(p.ts)+'</td><td class="r">'+fmt(p.ap,2)+'</td><td class="r">'+fmt(p.inv)+'</td><td class="r">'+fmt(p.cv)+'</td><td class="r"><span style="color:'+pc+';font-family:JetBrains Mono,monospace">'+fmt(p.pl)+'</span> <span class="chip '+cC(p.pp)+'">'+fP(p.pp)+'</span></td><td class="r" style="font-size:0.78rem">'+d2s(fb)+'</td><td class="r">'+dh+'d</td></tr>'}
+    h+='</tbody></table></div>';$('txContent').innerHTML=h;
+  }
+  function renderMarket(){
+    const stocks=Object.values(MKT).sort((a,b)=>a.stock_id-b.stock_id);if(!stocks.length)return;const held=new Set(Object.keys(USR));
+    let h='<div class="tw"><div class="tt">Torn Stock Exchange <span class="badge">'+stocks.length+' stocks</span></div><table><thead><tr><th>ID</th><th>Stock</th><th class="r">Price</th><th class="r">BB Req</th><th class="r">BB Cost</th><th>Benefit</th><th class="r">Freq</th><th class="r">Mkt Cap</th><th>Held</th></tr></thead><tbody>';
+    for(const s of stocks){const hl=held.has(String(s.stock_id)),ben=s.benefit||{},breq=ben.requirement||0;h+='<tr'+(hl?' style="background:rgba(34,197,94,0.04)"':'')+'><td style="font-family:JetBrains Mono,monospace">'+s.stock_id+'</td><td><div class="sn"><span class="a">'+s.acronym+'</span><span class="n">'+s.name+'</span></div></td><td class="r">'+fmt(s.current_price,2)+'</td><td class="r">'+fN(breq)+'</td><td class="r">'+fmt(s.current_price*breq)+'</td><td style="font-size:0.78rem;color:var(--text2);max-width:200px;white-space:normal">'+(ben.description||'N/A')+'</td><td class="r">'+(ben.frequency||'—')+'d</td><td class="r">'+fmt(s.market_cap)+'</td><td>'+(hl?'<span class="chip cg">✓</span>':'')+'</td></tr>'}
+    h+='</tbody></table></div>';$('marketContent').innerHTML=h;
+  }
+  function renderTrends(){
+    if(!TSD.length)return;const heldA=new Set(PF.map(p=>p.acr));
+    const strat=(typeof localStorage!=='undefined'&&localStorage.getItem('wallet_strategy'))||'overnight';
+    // Lazy-load short timeframes for scalp mode
+    if(strat==='scalp'&&Object.keys(HIST_M5).length===0&&!window._scalpLoading){
+      window._scalpLoading=true;
+      const acrs=TSD.filter(s=>s.stock!=='TCSE').map(s=>s.stock);
+      $('trendsContent').innerHTML='<div class="empty"><div class="empty-icon">🎰</div><h3>Loading 5m / 15m candles for scalp analysis...</h3></div>';
+      Promise.all([fetchBatch(acrs,'m5',60,HIST_M5),fetchBatch(acrs,'m15',60,HIST_M15)]).then(()=>{window._scalpLoading=false;renderTrends()});
+      return;
+    }
+    const scored=TSD.filter(s=>s.stock!=='TCSE').map(s=>{const a=calcWallet(s.stock,strat);return a?{...s,...a,held:heldA.has(s.stock)}:null}).filter(Boolean).sort((a,b)=>b.score-a.score);
+    let ci=0,h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">';
+    h+='<span style="font-size:0.8rem;color:var(--text3);font-weight:500">Strategy:</span><div class="page-nav" style="background:var(--bg2)">';
+    h+='<button class="page-nav-btn'+(strat==='overnight'?' active':'')+'" onclick="ST.setStrategy(\'overnight\')" style="font-size:0.72rem;padding:6px 11px">🌙 Overnight</button>';
+    h+='<button class="page-nav-btn'+(strat==='swing'?' active':'')+'" onclick="ST.setStrategy(\'swing\')" style="font-size:0.72rem;padding:6px 11px">📈 Swing 3-7d</button>';
+    h+='<button class="page-nav-btn'+(strat==='scalp'?' active':'')+'" onclick="ST.setStrategy(\'scalp\')" style="font-size:0.72rem;padding:6px 11px">🎰 Reversal Scalp</button>';
+    h+='</div></div>';
+    const info={
+      overnight:'<strong>🌙 Overnight Park</strong> — Park ~1 day with minimal downside. Calm volatility + not at a peak + <b>not in a downtrend</b> (price vs 7d MA + hourly trend). A calm stock that\'s quietly bleeding is now forced to 🔴 Downtrend — fixing the false-safe problem. Fee: 0.1% on sell.',
+      swing:'<strong>📈 Swing Park (3-7d)</strong> — Hold a few days to clear the fee + small gain. Needs up-drift + low entry + price above a rising 7d MA. RSI guards against buying tops. Fuses daily drift with hourly timing.',
+      scalp:'<strong>🎰 Reversal Scalp</strong> — <span style="color:var(--amber)">Higher risk gamble.</span> Finds <b>beaten-down</b> stocks (low in 30d range or below 14d avg) whose <b>5m / 15m / 1h candles are now ticking up</b>, with hourly RSI climbing off oversold. Catches the early turn. Needs short-timeframe data (auto-loaded).'
+    };
+    h+='<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">'+(strat==='overnight'?'🌙':strat==='swing'?'📈':'🎰')+'</span><div>'+info[strat]+'<br><span style="color:var(--text3);font-size:0.75rem">All stocks ranked best→worst — you always see options and their risk, even when nothing\'s ideal.</span></div></div>';
+    const volChipW=(v)=>{if(v==null)return'<span class="tf">—</span>';const p=(v*100).toFixed(2);const c=v<0.001?'var(--green)':v<0.003?'#4ade80':v<0.006?'var(--amber)':'var(--red)';return'<span style="font-family:JetBrains Mono,monospace;font-size:0.75rem;color:'+c+'">'+p+'%/h</span>'};
+    const driftChip=(d)=>{if(d==null)return'<span class="tf">—</span>';const c=d>0.003?'var(--green)':d>0?'#4ade80':d>-0.003?'var(--amber)':'var(--red)';return'<span style="font-family:JetBrains Mono,monospace;font-size:0.75rem;color:'+c+'">'+(d>=0?'+':'')+(d*100).toFixed(2)+'%</span>'};
+    const maChip=(s)=>{if(s.ma7==null)return'<span class="tf">—</span>';const up=s.maRising,dn=s.maFalling,above=s.aboveMA7;let txt,c;if(up&&above){txt='↑ rising';c='var(--green)'}else if(dn&&!above){txt='↓ falling';c='var(--red)'}else if(above){txt='↑ above';c='#4ade80'}else{txt='↓ below';c='var(--amber)'}return'<span style="font-size:0.72rem;color:'+c+'">'+txt+'</span>'};
+    const rsiChip=(r)=>{if(r==null)return'<span class="tf">—</span>';const c=r<30?'var(--green)':r>70?'var(--red)':'var(--text2)';return'<span style="font-family:JetBrains Mono,monospace;font-size:0.74rem;color:'+c+'">'+r.toFixed(0)+'</span>'};
+    const tfChip=(s)=>{if(s.scalpTotal===0)return'<span class="tf">—</span>';const mk=(v)=>v===null?'<span style="color:var(--text3)">·</span>':v?'<span style="color:var(--green)">▲</span>':'<span style="color:var(--red)">▼</span>';return'<span style="font-family:JetBrains Mono,monospace;font-size:0.78rem" title="5m / 15m / 1h">'+mk(s.m5up)+mk(s.m15up)+mk(s.h1up)+'</span>'};
+
+    if(strat==='scalp'){
+      h+='<div class="tw"><div class="tt">🎰 Reversal Scalp Candidates <span class="badge badge-g">'+scored.length+'</span></div><table><thead><tr><th>#</th><th>Stock</th><th>Chart</th><th class="r">Price</th><th class="c">Signal</th><th class="c">Range Pos</th><th class="c">5m/15m/1h</th><th class="c">H-RSI</th><th class="c">H-Trend</th><th class="c">1d</th><th class="c">Score</th><th class="c">Held</th></tr></thead><tbody>';
+      scored.forEach((s,i)=>{const ch=s.changes||{},cid='mc_'+ci++;const tc=(k)=>{const v=ch[k];if(v==null)return'<td class="tc tf">—</td>';return'<td class="tc '+tC(v)+'">'+fP(v)+'</td>'};
+        const sc=s.score>=6?'#4ade80':s.score>=3.5?'var(--green)':s.score>=0?'var(--amber)':'var(--red)';
+        const htrend=s.hTrendUp?'<span style="color:var(--green);font-size:0.72rem">↑ up</span>':s.hTrendDown?'<span style="color:var(--red);font-size:0.72rem">↓ down</span>':'<span style="color:var(--text3);font-size:0.72rem">→</span>';
+        h+='<tr'+(s.held?' style="background:rgba(59,130,246,0.04)"':'')+'><td style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(i+1)+'</td><td><div class="sn"><span class="a">'+s.stock+'</span><span class="n">'+s.name+'</span></div></td><td class="minichart"><canvas id="'+cid+'" width="120" height="32"></canvas></td><td class="r">'+fmt(parseFloat(s.price),2)+'</td><td class="c"><span style="font-size:0.72rem;font-weight:600;color:'+s.riskColor+'">'+s.risk+'</span></td><td class="c">'+rangeBar({pct:s.rangePos})+'</td><td class="c">'+tfChip(s)+'</td><td class="c">'+rsiChip(s.hRSI)+'</td><td class="c">'+htrend+'</td>'+tc('d1')+'<td class="c"><span style="font-family:JetBrains Mono,monospace;font-size:0.8rem;font-weight:700;color:'+sc+'">'+s.score.toFixed(1)+'</span></td><td class="c">'+(s.held?'<span class="chip cb">OWNED</span>':'')+'</td></tr>'});
+      h+='</tbody></table></div>';
+    }else{
+      const driftLabel=strat==='overnight'?'1d Drift':'5d Drift';
+      h+='<div class="tw"><div class="tt">'+(strat==='overnight'?'🌙 Overnight':'📈 Swing')+' Ranking <span class="badge badge-g">'+scored.length+'</span></div><table><thead><tr><th>#</th><th>Stock</th><th>Chart</th><th class="r">Price</th><th class="c">Risk</th><th class="c">Volatility</th><th class="c">Range Pos</th><th class="c">7d MA</th><th class="c">'+driftLabel+'</th><th class="c">RSI</th><th class="c">Fee Clear</th><th class="c">1w</th><th class="c">Score</th><th class="c">Held</th></tr></thead><tbody>';
+      scored.forEach((s,i)=>{const ch=s.changes||{},cid='mc_'+ci++;const tc=(k)=>{const v=ch[k];if(v==null)return'<td class="tc tf">—</td>';return'<td class="tc '+tC(v)+'">'+fP(v)+'</td>'};
+        const sc=s.score>=5?'#4ade80':s.score>=2.5?'var(--green)':s.score>=0?'var(--amber)':'var(--red)';
+        const driftVal=strat==='overnight'?s.drift1:s.drift5;const spike=s.hourlySpiking?' <span title="spiking now" style="color:var(--amber)">⚡</span>':'';
+        h+='<tr'+(s.held?' style="background:rgba(59,130,246,0.04)"':'')+'><td style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(i+1)+'</td><td><div class="sn"><span class="a">'+s.stock+'</span><span class="n">'+s.name+'</span></div></td><td class="minichart"><canvas id="'+cid+'" width="120" height="32"></canvas></td><td class="r">'+fmt(parseFloat(s.price),2)+'</td><td class="c"><span style="font-size:0.72rem;font-weight:600;color:'+s.riskColor+'">'+s.risk+'</span></td><td class="c">'+volChipW(s.vol)+'</td><td class="c">'+rangeBar({pct:s.rangePos})+spike+'</td><td class="c">'+maChip(s)+'</td><td class="c">'+driftChip(driftVal)+'</td><td class="c">'+rsiChip(strat==='overnight'?s.hRSI:s.dRSI)+'</td><td class="c"><span style="font-family:JetBrains Mono,monospace;font-size:0.74rem;color:'+(s.feeNote.includes('⚠')?'var(--red)':'var(--text2)')+'">'+s.feeNote+'</span></td>'+tc('w1')+'<td class="c"><span style="font-family:JetBrains Mono,monospace;font-size:0.8rem;font-weight:700;color:'+sc+'">'+s.score.toFixed(1)+'</span></td><td class="c">'+(s.held?'<span class="chip cb">OWNED</span>':'')+'</td></tr>'});
+      h+='</tbody></table></div>';
+    }
+    // Best picks
+    const best=scored.filter(s=>s.risk.includes('🟢')).slice(0,5),ok=scored.filter(s=>s.risk.includes('🟡')).slice(0,5);
+    const lbl1=strat==='scalp'?'🟢 Strong Turns':'🟢 Best Parks',lbl2=strat==='scalp'?'🟡 Turning':'🟡 Acceptable';
+    h+='<div class="mg" style="display:grid;grid-template-columns:1fr 1fr;gap:16px"><div class="tw"><div class="tt" style="color:var(--green)">'+lbl1+'</div><table><thead><tr><th>Stock</th><th class="c">Range</th><th class="c">'+(strat==='scalp'?'TFs':'Vol')+'</th><th class="r">Score</th></tr></thead><tbody>';
+    if(best.length){for(const s of best)h+='<tr><td style="font-family:JetBrains Mono,monospace;font-weight:600">'+s.stock+'</td><td class="c">'+rangeBar({pct:s.rangePos})+'</td><td class="c">'+(strat==='scalp'?tfChip(s):volChipW(s.vol))+'</td><td class="r" style="color:var(--green);font-family:JetBrains Mono,monospace;font-weight:600">'+s.score.toFixed(1)+'</td></tr>'}else h+='<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:20px">Nothing strong right now — check 🟡</td></tr>';
+    h+='</tbody></table></div><div class="tw"><div class="tt" style="color:var(--amber)">'+lbl2+'</div><table><thead><tr><th>Stock</th><th class="c">Range</th><th class="c">'+(strat==='scalp'?'TFs':'Vol')+'</th><th class="r">Score</th></tr></thead><tbody>';
+    if(ok.length){for(const s of ok)h+='<tr><td style="font-family:JetBrains Mono,monospace;font-weight:600">'+s.stock+'</td><td class="c">'+rangeBar({pct:s.rangePos})+'</td><td class="c">'+(strat==='scalp'?tfChip(s):volChipW(s.vol))+'</td><td class="r" style="color:var(--amber);font-family:JetBrains Mono,monospace;font-weight:600">'+s.score.toFixed(1)+'</td></tr>'}else h+='<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:20px">None</td></tr>';
+    h+='</tbody></table></div></div>';$('trendsContent').innerHTML=h;
+    scored.forEach((s,i)=>{const dc=HIST_D[s.stock];if(dc&&dc.length>5)drawMiniChart('mc_'+i,dc.slice(-30).map(d=>d.close))});
+  }
+  function renderSmart(){
+    if(!PF.length||!TSD.length)return;const allStocks=Object.values(MKT),heldMap={};PF.forEach(p=>heldMap[p.acr]=p);
+    const recs=allStocks.map(sd=>{const acr=sd.acronym,ta=calcScore(acr),held=heldMap[acr],ben=sd.benefit||{},bbReq=ben.requirement||0,bbCost=sd.current_price*bbReq,sharesHeld=held?held.ts:0,bbPct=bbReq>0?Math.min(sharesHeld/bbReq,1):0,bbMet=bbReq>0&&sharesHeld>=bbReq,sharesNeeded=Math.max(bbReq-sharesHeld,0),costToComplete=sharesNeeded*sd.current_price;let annBV=0;const freq=ben.frequency||0,pY=freq>0?365/freq:0,bdesc=ben.description||'',m=bdesc.match(/\$([0-9,]+)/);if(m)annBV=parseFloat(m[1].replace(/,/g,''))*pY;const roi=bbCost>0?annBV/bbCost:0;let ss=ta.score*0.45;if(!bbMet&&bbPct>0.5)ss+=2*bbPct;if(!bbMet&&bbPct>0.8)ss+=1;ss+=Math.min(roi*50,2);if(bbMet)ss-=1;
+    return{acr,name:sd.name,price:sd.current_price,bbReq,bbCost,sharesHeld,bbPct,bbMet,sharesNeeded,costToComplete,benefitDesc:bdesc,freq,roi,taScore:ta.score,taSignal:ta.signal,smartScore:ss,tier:ta.tier,range:ta.range}}).filter(s=>s.acr!=='TCSE').sort((a,b)=>b.smartScore-a.smartScore);
+    let h='<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">🧠</span><div><strong>Smart Buy v4+</strong> — Range reversion signals (45%) + BB proximity + benefit ROI. Best: stocks near 30d low with daily reversal confirmed + close to BB.</div></div>';
+    h+='<div class="tw"><div class="tt">🧠 Smart Buy <span class="badge badge-p">v4+ Portfolio</span></div><table><thead><tr><th>#</th><th>Stock</th><th class="r">Price</th><th>BB Progress</th><th class="r">Cost to BB</th><th>Benefit</th><th class="r">ROI/yr</th><th class="c">Range</th><th class="c">Tier</th><th class="r">Smart</th></tr></thead><tbody>';
+    recs.forEach((s,i)=>{const sc=s.smartScore>=4?'#4ade80':s.smartScore>=2?'var(--green)':s.smartScore>=0?'var(--amber)':'var(--red)',bc=s.bbMet?'var(--green)':'var(--amber)';
+    h+='<tr'+(i<3&&s.smartScore>2?' class="smart-row"':'')+'><td style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(i+1)+'</td><td><div class="sn"><span class="a">'+s.acr+'</span><span class="n">'+s.name+'</span></div></td><td class="r">'+fmt(s.price,2)+'</td><td>'+(s.bbMet?'<span class="chip cg">✓ MET</span>':'<span class="chip ca">'+(s.bbPct*100).toFixed(0)+'%</span> <span style="font-size:0.7rem;color:var(--text3)">need '+fN(s.sharesNeeded)+'</span>')+'<div class="bb-bar"><div class="bb-bar-fill" style="width:'+(s.bbPct*100).toFixed(0)+'%;background:'+bc+'"></div></div></td><td class="r">'+fmt(s.costToComplete)+'</td><td style="font-size:0.75rem;color:var(--text2);max-width:160px;white-space:normal">'+s.benefitDesc+' <span style="color:var(--text3)">('+s.freq+'d)</span></td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:'+(s.roi>0.01?'var(--green)':'var(--text2)')+'">'+(s.roi*100).toFixed(2)+'%</td><td class="c">'+rangeBar(s.range)+'</td><td class="c">'+tierChip(s.tier)+'</td><td class="r"><span style="font-family:JetBrains Mono,monospace;font-size:0.85rem;font-weight:600;color:'+sc+'">'+s.smartScore.toFixed(1)+'</span></td></tr>'});
+    h+='</tbody></table></div>';$('smartContent').innerHTML=h;
+  }
+  function renderBacktest(){
+    const acrs=Object.keys(BACKTEST).filter(a=>BACKTEST[a]&&BACKTEST[a].trades>0);
+    if(!acrs.length){$('backtestContent').innerHTML='<div class="empty"><div class="empty-icon">🔬</div><h3>No backtest data</h3></div>';return}
+    let tt=0,tw=0,tl=0,tr=0,sr=[];for(const a of acrs){const b=BACKTEST[a];tt+=b.trades;tw+=b.wins;tl+=b.losses;tr+=b.totalReturn;sr.push({acr:a,...b})}
+    const wr=tt>0?tw/tt:0,ar=tt>0?tr/tt:0;sr.sort((a,b)=>b.winRate-a.winRate);
+    let h='<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">🔬</span><div><strong>Backtest — Swing Park Validation</strong><br>Simulates the Swing strategy: enter when low in 30d range with a confirmed daily reversal (green candle + upward momentum), exit after 7 days. Win = sold higher than bought (before the 0.1% fee). Tested on ~60d of daily candles per stock. Note: overnight parking is too short-horizon to backtest meaningfully here — its edge is volatility avoidance, not directional.</div></div>';
+    h+='<div class="bt-stat"><div class="bt-card"><div class="bt-label">Signals</div><div class="bt-val">'+tt+'</div></div><div class="bt-card"><div class="bt-label">Win Rate</div><div class="bt-val" style="color:'+(wr>0.5?'var(--green)':'var(--red)')+'">'+(wr*100).toFixed(1)+'%</div></div><div class="bt-card"><div class="bt-label">Avg 7d Return</div><div class="bt-val" style="color:'+(ar>0?'var(--green)':'var(--red)')+'">'+fP(ar)+'</div></div><div class="bt-card"><div class="bt-label">W / L</div><div class="bt-val"><span style="color:var(--green)">'+tw+'</span> / <span style="color:var(--red)">'+tl+'</span></div></div></div>';
+    h+='<div class="tw"><div class="tt">📊 By Stock <span class="badge">7d exit</span></div><table><thead><tr><th>Stock</th><th class="r">#</th><th class="r">Win Rate</th><th class="r">Avg Ret</th><th class="r">Total</th><th class="r">W</th><th class="r">L</th></tr></thead><tbody>';
+    for(const s of sr)h+='<tr><td style="font-family:JetBrains Mono,monospace;font-weight:600">'+s.acr+'</td><td class="r">'+s.trades+'</td><td class="r" style="color:'+(s.winRate>0.5?'var(--green)':'var(--red)')+'">'+(s.winRate*100).toFixed(1)+'%</td><td class="r" style="color:'+(s.avgReturn>0?'var(--green)':'var(--red)')+'">'+fP(s.avgReturn)+'</td><td class="r" style="color:'+(s.totalReturn>0?'var(--green)':'var(--red)')+'">'+fP(s.totalReturn)+'</td><td class="r" style="color:var(--green)">'+s.wins+'</td><td class="r" style="color:var(--red)">'+s.losses+'</td></tr>';
+    h+='</tbody></table></div>';$('backtestContent').innerHTML=h;
+  }
+
+  // ======== MAIN FETCH ========
+  async function fetchAll(){
+    const k=$('apiKey').value.trim();if(!k){toast('⚠️ Enter your API key');return}
+    const btn=$('fetchAllBtn');$('stStatusText').textContent='Fetching portfolio & market...';
+    try{
+      const[sr,ur]=await Promise.all([tornFetch('torn/stocks'),tornFetch('user/stocks')]);
+      if(!sr||!ur){$('stStatusText').textContent='Fetch failed';return}
+      // Normalize Torn API v2 format
+      const rawStocks=sr.stocks||[];MKT={};window.STOCK_ACR=window.STOCK_ACR||{};
+      for(const s of rawStocks){
+        MKT[s.id]={stock_id:s.id,name:s.name,acronym:s.acronym,
+          current_price:s.market?.price||0,market_cap:s.market?.cap||0,total_shares:s.market?.shares||0,
+          benefit:{requirement:s.bonus?.requirement||0,description:s.bonus?.description||'',frequency:s.bonus?.frequency||0,type:s.bonus?.passive?'passive':'active'}};
+        window.STOCK_ACR[s.id]=s.acronym;
+      }
+      const rawUser=ur.stocks||[];USR={};
+      for(const u of rawUser){
+        const txObj={};
+        if(Array.isArray(u.transactions)){
+          for(const tx of u.transactions)txObj[tx.id]={shares:tx.shares,bought_price:tx.price,time_bought:tx.timestamp};
+        }
+        USR[u.id]={total_shares:u.shares||0,transactions:txObj,
+          dividend:{progress:u.bonus?.progress||0,frequency:u.bonus?.frequency||0,ready:u.bonus?.available||false}};
+      }
+      // Build stock list from Torn API (no Tornsy overview needed)
+      const acrs=rawStocks.map(s=>s.acronym).filter(a=>a!=='TCSE');
+      TSD=rawStocks.filter(s=>s.acronym!=='TCSE').map(s=>({stock:s.acronym,name:s.name,price:String(s.market?.price||0)}));
+      TSM={};for(const s of TSD)TSM[s.stock]=s;
+      processData();renderPortfolio();renderTx();renderMarket();updateSummary();
+      // Fetch candle data from Tornsy (h1 + d1)
+      HIST_H={};HIST_D={};HIST_M5={};HIST_M15={};window._scalpLoading=false;
+      $('stStatusText').textContent='Loading candle data...';
+      await Promise.all([fetchBatch(acrs,'h1',60,HIST_H),fetchBatch(acrs,'d1',60,HIST_D)]);
+      // Price changes computed by calcScore directly from candle data
+      for(const s of TSD){s.interval={}}
+      renderTrends();renderSmart();
+      $('stStatusText').textContent='Running backtests...';BACKTEST={};for(const a of acrs)BACKTEST[a]=runBacktest(a);renderBacktest();
+      $('stStatusDot').className='status-dot ok';$('stStatusText').textContent='Wallet engine loaded — overnight & swing parking';$('stLastUpdated').textContent=new Date().toLocaleTimeString();
+      toast('✅ Stock data loaded');
+    }catch(e){toast('❌ '+e.message);$('stStatusText').textContent='Error'}
+  }
+
+  function setStrategy(strat){try{localStorage.setItem('wallet_strategy',strat)}catch(e){}renderTrends()}
+  return{fetchAll,setStrategy,renderTrends};
+})();
+
+// ============================================================
+// BOUNTY SCOUT MODULE (BS)
+// ============================================================
+const BS=(function(){
+  let BOUNTIES=[],PROFILES={},FFDATA={},HOF={};
+
+  async function tornFetch(ep){
+    const k=$('apiKey').value.trim();if(!k)return null;
+    const s=ep.includes('?')?'&':'?';
+    const r=await fetch('https://api.torn.com/v2/'+ep+s+'key='+encodeURIComponent(k));
+    const d=await r.json();if(d.error){toast('Torn API: '+d.error.error);return null}return d;
+  }
+  async function fetchBounties(){
+    let all=[],url='torn/bounties?limit=100';
+    for(let pg=0;pg<10;pg++){const d=await tornFetch(url);if(!d||!d.bounties)break;all=all.concat(d.bounties);if(d._metadata&&d._metadata.links&&d._metadata.links.next){const m=d._metadata.links.next.match(/offset=(\d+)/);if(m)url='torn/bounties?limit=100&offset='+m[1];else break}else break}return all;
+  }
+  async function fetchProfiles(ids,onProgress){
+    const results={},bs=25;
+    for(let i=0;i<ids.length;i+=bs){
+      const batch=ids.slice(i,i+bs);
+      await Promise.all(batch.map(id=>{const k=$('apiKey').value.trim();return fetch('https://api.torn.com/v2/user/'+id+'/profile?key='+encodeURIComponent(k)).then(r=>r.json()).then(d=>{if(d&&d.profile)results[id]=d.profile}).catch(()=>{})}));
+      if(onProgress)onProgress(Math.min(i+bs,ids.length),ids.length);if(i+bs<ids.length)await new Promise(r=>setTimeout(r,300));
+    }return results;
+  }
+  async function fetchFFStats(ids){
+    const k=$('ffsKey').value.trim();if(!k||!ids.length)return{};const results={},bs=200;
+    for(let i=0;i<ids.length;i+=bs){const batch=ids.slice(i,i+bs);try{const r=await fetch('https://ffscouter.com/api/v1/get-stats?key='+encodeURIComponent(k)+'&targets='+batch.join(','));const d=await r.json();if(Array.isArray(d))for(const p of d)results[p.player_id]=p;else if(d.error)toast('FFScouter: '+d.error)}catch(e){toast('FFScouter error')}}return results;
+  }
+
+  // Render helpers
+  function ffChip(ff){if(ff==null)return'<span class="chip" style="background:rgba(100,116,139,0.1);color:var(--text3);border:1px solid var(--border)">— N/A</span>';let col,label;if(ff<=2){col='var(--green)';label='Easy'}else if(ff<=3){col='#4ade80';label='Fair'}else if(ff<=3.66){col='var(--amber)';label='Even'}else if(ff<=4.5){col='var(--orange)';label='Hard'}else{col='var(--red)';label='Danger'}const w=Math.min((ff/5)*100,100);return'<div style="display:inline-flex;align-items:center;gap:6px"><div class="ff-bar" style="background:rgba(100,116,139,0.15)"><div class="ff-fill" style="width:'+w+'%;background:'+col+'"></div></div><span style="font-family:JetBrains Mono,monospace;font-size:0.78rem;font-weight:600;color:'+col+'">'+ff.toFixed(2)+'</span><span style="font-size:0.65rem;color:'+col+'">'+label+'</span></div>'}
+  function statusChip(p){if(!p)return'<span class="chip" style="background:rgba(100,116,139,0.1);color:var(--text3);border:1px solid var(--border)">Unknown</span>';const s=p.status;if(s.state==='Hospital'){const u=s.until?new Date(s.until*1000):null,left=u?Math.max(0,Math.floor((u-Date.now())/60000)):0;return'<span class="chip cr">🏥 Hospital'+(left>0?' ('+left+'m)':'')+'</span>'}if(s.state==='Okay')return'<span class="chip cg">✓ Okay</span>';if(s.state==='Traveling')return'<span class="chip cb">✈ Traveling</span>';if(s.state==='Jail')return'<span class="chip ca">⛓ Jail</span>';if(s.state==='Abroad')return'<span class="chip cp">🌍 Abroad</span>';if(s.state==='Federal')return'<span class="chip ca">🏛 Federal</span>';return'<span class="chip">'+s.state+'</span>'}
+  function reviveChip(p){if(!p)return'<span style="color:var(--text3)">?</span>';return p.revivable?'<span class="chip cg">✓ Yes</span>':'<span class="chip cr">✗ No</span>'}
+  function lastActionStr(p){if(!p||!p.last_action)return'—';const la=p.last_action;return'<span style="color:'+(la.status==='Online'?'var(--green)':la.status==='Idle'?'var(--amber)':'var(--text3)')+'">'+la.status+'</span><br><span style="font-size:0.7rem;color:var(--text3)">'+la.relative+'</span>'}
+  function ffAge(ff){if(!ff||!ff.last_updated)return'';const d=Math.floor((Date.now()/1000-ff.last_updated)/86400);if(d>14)return' <span style="font-size:0.6rem;color:var(--amber)">⚠ '+d+'d</span>';if(d>0)return' <span style="font-size:0.6rem;color:var(--text3)">'+d+'d ago</span>';return' <span style="font-size:0.6rem;color:var(--text3)">today</span>'}
+
+  function buildRow(b,p,ff){
+    const pUrl='https://www.torn.com/profiles.php?XID='+b.target_id,bUrl='https://www.torn.com/bounties.php?userID='+b.target_id;
+    const bCount=b.bountyCount>1?' <span style="font-size:0.65rem;color:var(--amber);background:rgba(245,158,11,0.12);padding:1px 5px;border-radius:3px">×'+b.bountyCount+'</span>':'';
+    const rwdText=fmt(b.reward)+(b.quantity>1?' <span style="color:var(--amber)">x'+b.quantity+'</span>':'')+bCount;
+    const hospTime=b.hospMins>0?' <span style="font-size:0.65rem;color:var(--text3)">('+b.hospMins+'m)</span>':'';
+    const ageText=p&&p.age?'<br><span style="font-size:0.6rem;color:var(--text3)">'+p.age+'d old</span>':'';
+    return'<tr><td><a href="'+pUrl+'" target="_blank" style="font-family:JetBrains Mono,monospace;font-weight:600">'+b.target_name+'</a> <span style="font-size:0.7rem;color:var(--text3)">['+b.target_id+']</span>'+ageText+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:0.8rem;color:var(--text2)">'+b.target_level+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--green)">'+rwdText+'</td><td class="c">'+statusChip(p)+hospTime+'</td><td class="c">'+reviveChip(p)+'</td><td class="c">'+ffChip(ff?ff.fair_fight:null)+ffAge(ff)+'</td><td class="c">'+(ff?'<span style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:var(--cyan)">'+ff.bs_estimate_human+'</span>':'<span style="color:var(--text3)">—</span>')+'</td><td class="c">'+lastActionStr(p)+'</td><td style="font-size:0.75rem;color:var(--text3);max-width:150px;overflow:hidden;text-overflow:ellipsis">'+(b.reason||'—')+'</td><td style="font-size:0.75rem;color:var(--text3)">'+(b.is_anonymous?'<em>Anonymous</em>':(b.lister_name||'—'))+'</td><td class="r" style="font-size:0.75rem;color:'+(Math.floor((new Date(b.valid_until*1000)-Date.now())/3600000)<12?'var(--amber)':'var(--text3)')+'">'+Math.max(0,Math.floor((new Date(b.valid_until*1000)-Date.now())/3600000))+'h</td><td class="c"><a href="'+bUrl+'" target="_blank" class="btn" style="font-size:0.7rem;padding:4px 10px;background:rgba(249,115,22,0.12);color:var(--orange);border:1px solid rgba(249,115,22,0.3);border-radius:4px;text-decoration:none">Claim</a></td></tr>';
+  }
+  function tableHead(){return'<table><thead><tr><th>Target</th><th class="r">Lvl</th><th class="r">Reward</th><th class="c">Status</th><th class="c">Revivable</th><th class="c">Fair Fight</th><th class="c">Est. Stats</th><th class="c">Last Action</th><th>Reason</th><th>Lister</th><th class="r">Expires</th><th class="c">Action</th></tr></thead><tbody>'}
+
+  function renderAll(sortBy){
+    sortBy=sortBy||'reward';
+    const maxFF=parseFloat(($('ffSlider')||{}).value||4.5);
+    const ffFilter=e=>{if(!e.ff||e.ff.fair_fight==null)return true;return e.ff.fair_fight<=maxFF};
+    // Filter players <14 days old (under protection)
+    const ageFilter=e=>{if(!e.profile||!e.profile.age)return true;return e.profile.age>=14};
+    const enriched=BOUNTIES.map(b=>{const p=PROFILES[b.target_id]||null,ff=FFDATA[b.target_id]||null,isHosp=p&&p.status&&p.status.state==='Hospital',isRevivable=p&&p.revivable===true,claimable=p&&!isHosp&&p.status&&(p.status.state==='Okay'||p.status.state==='Abroad');
+      const hospMins=isHosp&&p.status.until?Math.max(0,Math.floor((p.status.until*1000-Date.now())/60000)):0;
+      return{...b,profile:p,ff,isHosp,isRevivable,claimable,hospMins}});
+    // Group by target_id — keep highest reward bounty per target
+    const grouped={};for(const e of enriched){
+      const key=e.target_id;
+      if(!grouped[key]||e.reward*e.quantity>grouped[key].reward*grouped[key].quantity){
+        grouped[key]={...e,bountyCount:grouped[key]?(grouped[key].bountyCount||1)+1:1,totalReward:(grouped[key]?.totalReward||0)+e.reward*e.quantity};
+      }else{grouped[key].bountyCount=(grouped[key].bountyCount||1)+1;grouped[key].totalReward+=e.reward*e.quantity}
+    }
+    let all=Object.values(grouped).filter(ffFilter).filter(ageFilter);
+    // Sort
+    if(sortBy==='reward')all.sort((a,b)=>b.reward*b.quantity-a.reward*a.quantity);
+    else if(sortBy==='hospital')all.sort((a,b)=>a.hospMins-b.hospMins);// shortest hospital first (most claimable soon)
+    else if(sortBy==='ff')all.sort((a,b)=>(a.ff?.fair_fight||99)-(b.ff?.fair_fight||99));
+
+    const cl=all.filter(e=>e.claimable),rv=all.filter(e=>e.isHosp&&e.isRevivable);
+    $('claimableCount').textContent=cl.length;$('revivableCount').textContent=rv.length;
+
+    const sortBtns='<div style="display:flex;gap:4px;margin-bottom:8px"><span style="font-size:0.72rem;color:var(--text3);padding:4px 0">Sort:</span>'+
+      '<button onclick="BS.refilter(\'reward\')" class="btn" style="font-size:0.68rem;padding:3px 8px;background:'+(sortBy==='reward'?'var(--bg4)':'var(--bg2)')+';color:var(--text);border:1px solid var(--border)">💰 Reward</button>'+
+      '<button onclick="BS.refilter(\'hospital\')" class="btn" style="font-size:0.68rem;padding:3px 8px;background:'+(sortBy==='hospital'?'var(--bg4)':'var(--bg2)')+';color:var(--text);border:1px solid var(--border)">🏥 Hospital</button>'+
+      '<button onclick="BS.refilter(\'ff\')" class="btn" style="font-size:0.68rem;padding:3px 8px;background:'+(sortBy==='ff'?'var(--bg4)':'var(--bg2)')+';color:var(--text);border:1px solid var(--border)">⚔ Fair Fight</button></div>';
+
+    let h=sortBtns+'<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">🎯</span><div><strong>Claimable Bounties</strong> — FF ≤ '+maxFF+', age ≥14d. Grouped by target (highest bounty shown).</div></div>';
+    h+='<div class="tw"><div class="tt">🎯 Claimable <span class="badge badge-g">'+cl.length+'</span></div>'+tableHead();
+    if(cl.length)for(const e of cl)h+=buildRow(e,e.profile,e.ff);else h+='<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:30px">No claimable bounties at FF ≤ '+maxFF+'</td></tr>';
+    h+='</tbody></table></div>';$('claimableContent').innerHTML=h;
+    h=sortBtns+'<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">💉</span><div><strong>Revivable Targets</strong> — In hospital + revivable. Revive for HoF credit.</div></div>';
+    h+='<div class="tw"><div class="tt">💉 Revivable <span class="badge badge-p">'+rv.length+'</span></div>'+tableHead();
+    if(rv.length)for(const e of rv)h+=buildRow(e,e.profile,e.ff);else h+='<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:30px">No revivable targets at FF ≤ '+maxFF+'</td></tr>';
+    h+='</tbody></table></div>';$('revivableContent').innerHTML=h;
+    h=sortBtns+'<div class="tw"><div class="tt">📋 All Bounties <span class="badge badge-a">'+all.length+' targets</span></div>'+tableHead();
+    for(const e of all)h+=buildRow(e,e.profile,e.ff);h+='</tbody></table></div>';$('allContent').innerHTML=h;
+  }
+  function refilter(sortBy){if(BOUNTIES.length)renderAll(sortBy)}
+
+  async function fetchAll(){
+    const tk=$('apiKey').value.trim();if(!tk){toast('Enter your Torn API key');return}
+    const btn=$('fetchAllBtn');
+    try{
+      $('bsStatusText').textContent='Loading bounties & HoF...';
+      const[hofData,hof250Data,bounties]=await Promise.all([tornFetch('user/hof'),tornFetch('torn/hof?cat=revives&limit=1&offset=249'),fetchBounties()]);
+      if(hofData&&hofData.hof){HOF=hofData.hof;const rev=HOF.revives||{};
+        $('hofRank').textContent='#'+fN(rev.rank);$('hofCount').textContent=fN(rev.value)+' revives';
+        // Calculate progress against #250's actual revive count
+        let target250=rev.value;// fallback
+        if(hof250Data&&hof250Data.hof&&hof250Data.hof.length>0){target250=hof250Data.hof[0].value;HOF._target250=target250}
+        if(rev.rank<=250){$('hofProgress').textContent='IN TOP 250!';$('hofProgress').style.color='var(--green)';$('hofBar').style.width='100%'}
+        else{const pct=Math.min((rev.value/target250)*100,99.9).toFixed(1);$('hofProgress').textContent=pct+'% (need '+fN(target250-rev.value)+' more)';$('hofBar').style.width=pct+'%'}
+      }
+      BOUNTIES=bounties;$('totalBounties').textContent=BOUNTIES.length;$('totalReward').textContent='Total: '+fmt(BOUNTIES.reduce((s,b)=>s+b.reward*b.quantity,0));
+      const ids=[...new Set(BOUNTIES.map(b=>b.target_id))];
+      $('bsStatusText').textContent='Loading profiles & FFScouter...';
+      const[profiles,ffdata]=await Promise.all([fetchProfiles(ids,(done,total)=>{$('bsStatusText').textContent='Profiles... '+Math.round(done/total*100)+'%'}),fetchFFStats(ids)]);
+      PROFILES=profiles;FFDATA=ffdata;renderAll();
+      $('bsStatusDot').className='status-dot ok';$('bsStatusText').textContent='Loaded — '+BOUNTIES.length+' bounties, '+ids.length+' targets';$('bsLastUpdated').textContent=new Date().toLocaleTimeString();
+      toast('🎯 Scouting complete!');
+    }catch(e){toast('Error: '+e.message);$('bsStatusText').textContent='Error'}
+  }
+
+  return{fetchAll,refilter};
+})();
+
+// ====== UNIFIED FETCH ======
+async function fetchAllData(){
+  const k=$('apiKey').value.trim();if(!k){toast('⚠️ Enter your API key');return}
+  const btn=$('fetchAllBtn');btn.classList.add('loading');btn.disabled=true;
+  try{
+    // Phase 1: Stocks + Bounties in parallel (shared Torn API)
+    $('stStatusText').textContent='Fetching all data...';$('bsStatusText').textContent='Fetching...';
+    await Promise.all([ST.fetchAll(),BS.fetchAll(),window.TV?TV.refresh():Promise.resolve()]);
+    try{localStorage.setItem('torn_api_key',k);localStorage.setItem('ffs_key',$('ffsKey').value.trim())}catch(e){}
+  }catch(e){toast('❌ '+e.message)}
+  finally{btn.classList.remove('loading');btn.disabled=false}
+}
+
+// ====== INIT ======
+(function(){
+  try{
+    const k=localStorage.getItem('torn_api_key');if(k)$('apiKey').value=k;
+    const fk=localStorage.getItem('ffs_key')||localStorage.getItem('ffs_key_bounty');if(fk)$('ffsKey').value=fk;
+  }catch(e){}
+  $('apiKey').addEventListener('keydown',e=>{if(e.key==='Enter')fetchAllData()});
+  $('ffsKey').addEventListener('keydown',e=>{if(e.key==='Enter')fetchAllData()});
+  // Register service worker for PWA install
+  if('serviceWorker' in navigator){
+    const swCode='self.addEventListener("install",e=>{self.skipWaiting()});self.addEventListener("activate",e=>{e.waitUntil(clients.claim())});self.addEventListener("fetch",e=>{e.respondWith(fetch(e.request).catch(()=>new Response("Offline",{status:503})))});';
+    const blob=new Blob([swCode],{type:'application/javascript'});
+    const swUrl=URL.createObjectURL(blob);
+    navigator.serviceWorker.register(swUrl,{scope:'/'}).catch(()=>{});
+  }
+  if(window.EN){EN.init();const m=$('enMult');if(m)m.addEventListener('change',()=>EN.renderDrinks())}
+})();
+</script>
+</body>
+</html>
