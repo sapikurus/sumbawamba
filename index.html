@@ -208,11 +208,12 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
     <button class="btn" onclick="TV.loadHistory()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>📊 Load History</span></button>
     <button class="btn btn-primary" onclick="TV.syncNow()"><span>🔄 Sync Log Now</span></button>
     <span id="tvSyncInfo" style="font-size:0.72rem;color:var(--text3);align-self:center"></span>
-    <span onclick="document.getElementById('tvAdvanced').style.display=document.getElementById('tvAdvanced').style.display==='none'?'flex':'none'" style="margin-left:auto;font-size:0.68rem;color:var(--text3);cursor:pointer;align-self:center;opacity:0.5">⚙ advanced</span>
+    <button onclick="var a=document.getElementById('tvAdvanced');a.style.display=a.style.display==='none'?'flex':'none'" class="btn" style="margin-left:auto;font-size:0.72rem;padding:5px 12px;background:var(--bg3);color:var(--text2);border:1px solid var(--border);align-self:center">⚙ Advanced</button>
   </div>
-  <div id="tvAdvanced" style="display:none;gap:8px;margin-bottom:12px;align-items:center">
+  <div id="tvAdvanced" style="display:none;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
     <button class="btn" onclick="TV.resetHistory()" style="background:rgba(239,68,68,0.08);color:var(--red);border:1px solid rgba(239,68,68,0.25);font-size:0.75rem;padding:6px 12px"><span>🗑 Reset & Rebuild Full History</span></button>
-    <span style="font-size:0.68rem;color:var(--text3)">One-time: wipes stored history & re-pulls your entire Torn log from the start. Only needed once.</span>
+    <button class="btn" onclick="TV.resumeBackfill()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);font-size:0.75rem;padding:6px 12px"><span>▶ Resume Backfill</span></button>
+    <span style="font-size:0.68rem;color:var(--text3)">Reset = start over from scratch. Resume = continue an interrupted pull from where it stopped.</span>
   </div>
   <div id="tvCurrentTravel"></div>
   <div class="tw" style="overflow:visible"><div class="tt">⚙️ Profit Settings</div>
@@ -375,32 +376,39 @@ const TV=(function(){
       $('tvStatusText').textContent='History loaded';$('tvStatusDot').className='status-dot ok';
     }catch(e){$('tvSyncInfo').textContent='⚠ History not available (deploy Netlify functions first)';$('tvStatusText').textContent='No history backend'}
   }
-  async function resetHistory(){
-    if(!confirm('This wipes stored history and rebuilds your ENTIRE log from the beginning. It runs in chunks and may take a minute or two. Continue?'))return;
-    let secret=null;try{secret=localStorage.getItem('sync_secret')}catch(e){}
-    if(!secret){secret=prompt('Enter your sync secret to reset.');if(!secret)return;try{localStorage.setItem('sync_secret',secret)}catch(e){}}
+  async function runBackfill(secret,firstUrl){
     $('tvStatusDot').className='status-dot loading';
-    try{
-      // First call: reset + start backfill
-      $('tvStatusText').textContent='Wiping & starting full rebuild...';
-      let r=await fetch('/.netlify/functions/sync-log?reset=1&backfill=1&secret='+encodeURIComponent(secret));
-      let j=await r.json();
-      if(j.error){if(r.status===401||r.status===403){try{localStorage.removeItem('sync_secret')}catch(e){}toast('❌ Wrong secret — cleared');}else toast('❌ '+j.error);$('tvStatusText').textContent='Reset error';return}
-      let round=1;
-      // Keep pulling older pages until backfill complete
-      while(j.backfillMore){
-        round++;
-        $('tvStatusText').textContent='Backfilling history... ('+j.total.travel+' trips, '+j.total.buys+' buys so far)';
-        $('tvSyncInfo').textContent='Deep pull round '+round+' — please wait, don\'t close';
-        await new Promise(res=>setTimeout(res,900)); // pace between chunk calls
+    let r=await fetch(firstUrl);let j=await r.json();
+    if(j.error){if(r.status===401||r.status===403){try{localStorage.removeItem('sync_secret')}catch(e){}toast('❌ Wrong secret — cleared');}else toast('❌ '+j.error);$('tvStatusText').textContent='Backfill error';return false}
+    let round=1,fails=0;
+    while(j.backfillMore){
+      round++;
+      $('tvStatusText').textContent='Backfilling... '+j.total.travel+' trips, '+j.total.buys+' buys so far';
+      $('tvSyncInfo').textContent='Round '+round+' — pulling older history (safe to leave running)';
+      await new Promise(res=>setTimeout(res,1000));
+      try{
         r=await fetch('/.netlify/functions/sync-log?backfill=1&secret='+encodeURIComponent(secret));
         j=await r.json();
-        if(j.error){toast('⚠ Backfill paused: '+j.error);break}
-        if(round>80){toast('⚠ Stopped at 80 rounds (very long history)');break}
-      }
-      toast('✅ Full history rebuilt: '+j.total.travel+' trips, '+j.total.buys+' buys, '+j.total.stocks+' stock tx');
-      MY_ITEMS=[];PRICES={};await loadHistory();
-    }catch(e){toast('❌ '+e.message);$('tvStatusText').textContent='Reset error'}
+        if(j.error){fails++;if(fails>=3){toast('⚠ Paused after 3 errors: '+j.error+' — tap Resume Backfill to continue');$('tvStatusText').textContent='Backfill paused (tap Resume)';return false}await new Promise(res=>setTimeout(res,3000));continue}
+        fails=0;
+      }catch(e){fails++;if(fails>=3){toast('⚠ Network paused — tap Resume Backfill to continue');$('tvStatusText').textContent='Backfill paused (tap Resume)';return false}await new Promise(res=>setTimeout(res,3000));continue}
+      if(round>150){toast('⚠ Stopped at 150 rounds — tap Resume to continue if needed');break}
+    }
+    toast('✅ History complete: '+j.total.travel+' trips, '+j.total.buys+' buys, '+j.total.stocks+' stock tx');
+    $('tvSyncInfo').textContent='';MY_ITEMS=[];PRICES={};await loadHistory();return true;
+  }
+  async function resetHistory(){
+    if(!confirm('This WIPES stored history and rebuilds your ENTIRE log from scratch. May take a few minutes for long histories. Continue?'))return;
+    let secret=null;try{secret=localStorage.getItem('sync_secret')}catch(e){}
+    if(!secret){secret=prompt('Enter your sync secret to reset.');if(!secret)return;try{localStorage.setItem('sync_secret',secret)}catch(e){}}
+    $('tvStatusText').textContent='Wiping & starting full rebuild...';
+    await runBackfill(secret,'/.netlify/functions/sync-log?reset=1&backfill=1&secret='+encodeURIComponent(secret));
+  }
+  async function resumeBackfill(){
+    let secret=null;try{secret=localStorage.getItem('sync_secret')}catch(e){}
+    if(!secret){secret=prompt('Enter your sync secret.');if(!secret)return;try{localStorage.setItem('sync_secret',secret)}catch(e){}}
+    $('tvStatusText').textContent='Resuming backfill from where it stopped...';
+    await runBackfill(secret,'/.netlify/functions/sync-log?backfill=1&secret='+encodeURIComponent(secret));
   }
   async function syncNow(){
     let secret=null;
@@ -602,7 +610,7 @@ const TV=(function(){
   }
   function toggleStockHist(){window._stockHistOpen=!window._stockHistOpen;renderStockHist()}
 
-  return{refresh,renderItems,loadHistory,syncNow,resetHistory,renderStockHist,renderPeriod,setPeriodType,periodNav,loadPricesAndRender,toggleStockHist,toggleTrip,tripPage};
+  return{refresh,renderItems,loadHistory,syncNow,resetHistory,resumeBackfill,renderStockHist,renderPeriod,setPeriodType,periodNav,loadPricesAndRender,toggleStockHist,toggleTrip,tripPage};
 })();
 </script>
 
