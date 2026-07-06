@@ -142,7 +142,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 <!-- ====== STOCK TRADER PAGE ====== -->
 <div class="page active" id="page-stocks">
 <main class="main">
-  <div class="status-bar"><div><span class="status-dot idle" id="stStatusDot"></span><span id="stStatusText">Enter API key & tap Refresh</span></div><div id="stLastUpdated"></div></div>
+  <div class="status-bar"><div><span class="status-dot idle" id="stStatusDot"></span><span id="stStatusText">Enter API key & tap Refresh</span></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" onclick="refreshSection('stocks')" style="padding:5px 12px;font-size:0.75rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>🔄 Refresh Stocks</span></button><span id="stLastUpdated"></span></div></div>
   <div class="summary-grid">
     <div class="card fade-in delay-1"><div class="card-label">Portfolio Value</div><div class="card-value" id="totalValue">—</div></div>
     <div class="card fade-in delay-2"><div class="card-label">Total Invested</div><div class="card-value" id="totalInvested">—</div></div>
@@ -173,7 +173,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 <!-- ====== BOUNTY SCOUT PAGE ====== -->
 <div class="page" id="page-bounty">
 <main class="main">
-  <div class="status-bar"><div><span class="status-dot idle" id="bsStatusDot"></span><span id="bsStatusText">Enter API keys & tap Scout</span></div><div id="bsLastUpdated"></div></div>
+  <div class="status-bar"><div><span class="status-dot idle" id="bsStatusDot"></span><span id="bsStatusText">Enter API keys & tap Scout</span></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" onclick="refreshSection('bounty')" style="padding:5px 12px;font-size:0.75rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>🔄 Refresh Bounties</span></button><span id="bsLastUpdated"></span></div></div>
   <div class="summary-grid">
     <div class="card revive-card fade-in"><div class="card-label">Revive HoF Rank</div><div class="card-value" id="hofRank">—</div><div class="card-sub" id="hofCount"></div></div>
     <div class="card revive-card fade-in"><div class="card-label">Top 250 Progress</div><div class="card-value" id="hofProgress">—</div><div class="progress-track"><div class="progress-fill" id="hofBar" style="width:0%"></div></div></div>
@@ -203,12 +203,16 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 <!-- ====== TRAVEL PAGE ====== -->
 <div class="page" id="page-travel">
 <main class="main">
-  <div class="status-bar"><div><span class="status-dot idle" id="tvStatusDot"></span><span id="tvStatusText">Refresh to load travel data</span></div><div id="tvLastUpdated"></div></div>
+  <div class="status-bar"><div><span class="status-dot idle" id="tvStatusDot"></span><span id="tvStatusText">Refresh to load travel data</span></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" onclick="refreshSection('travel')" style="padding:5px 12px;font-size:0.75rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>🔄 Refresh Travel</span></button><span id="tvLastUpdated"></span></div></div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
     <button class="btn" onclick="TV.loadHistory()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>📊 Load History</span></button>
     <button class="btn btn-primary" onclick="TV.syncNow()"><span>🔄 Sync Log Now</span></button>
-    <button class="btn" onclick="TV.resetHistory()" style="background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.3)"><span>🗑 Reset & Rebuild</span></button>
     <span id="tvSyncInfo" style="font-size:0.72rem;color:var(--text3);align-self:center"></span>
+    <span onclick="document.getElementById('tvAdvanced').style.display=document.getElementById('tvAdvanced').style.display==='none'?'flex':'none'" style="margin-left:auto;font-size:0.68rem;color:var(--text3);cursor:pointer;align-self:center;opacity:0.5">⚙ advanced</span>
+  </div>
+  <div id="tvAdvanced" style="display:none;gap:8px;margin-bottom:12px;align-items:center">
+    <button class="btn" onclick="TV.resetHistory()" style="background:rgba(239,68,68,0.08);color:var(--red);border:1px solid rgba(239,68,68,0.25);font-size:0.75rem;padding:6px 12px"><span>🗑 Reset & Rebuild Full History</span></button>
+    <span style="font-size:0.68rem;color:var(--text3)">One-time: wipes stored history & re-pulls your entire Torn log from the start. Only needed once.</span>
   </div>
   <div id="tvCurrentTravel"></div>
   <div id="tvDestChart"></div>
@@ -467,10 +471,13 @@ const TV=(function(){
       if(best)tripBuys[best.id].push(b);
     }
     let totalProfit=0,totalSpent=0;
-    let h='<div class="tw"><div class="tt">🛫 Flight Log <span class="badge badge-g">'+trips.length+' trips this '+win+'</span></div>';
-    h+='<div style="padding:10px 14px;font-size:0.78rem;color:var(--text3)">Tap a trip to expand its items, prices, and profit. Profit uses best of NPC/market sell.</div><div style="padding:0 6px 10px">';
-    if(!trips.length)h+='<div style="padding:20px;text-align:center;color:var(--text3)">No trips in this window</div>';
-    for(const t of trips){
+    // Only show trips where items were bought (the outbound legs). Empty trips are
+    // return flights (China -> Torn) and add no info.
+    const shownTrips=trips.filter(t=>(tripBuys[t.id]||[]).length>0);
+    let h='<div class="tw"><div class="tt">🛫 Flight Log <span class="badge badge-g">'+shownTrips.length+' buying trips this '+win+'</span></div>';
+    h+='<div style="padding:10px 14px;font-size:0.78rem;color:var(--text3)">Tap a trip to expand its items, prices, and profit. Return legs (no purchases) are hidden.</div><div style="padding:0 6px 10px">';
+    if(!shownTrips.length)h+='<div style="padding:20px;text-align:center;color:var(--text3)">No buying trips in this window</div>';
+    for(const t of shownTrips){
       const c=ctry(t);const tb=tripBuys[t.id]||[];
       let tripProfit=0,tripSpent=0;
       for(const b of tb){const s=bestSell(b.item);tripProfit+=(s.val-b.costEach)*b.qty;tripSpent+=b.costEach*b.qty}
@@ -483,16 +490,16 @@ const TV=(function(){
       h+='<span style="color:var(--text3);font-size:0.75rem">'+(isOpen?'▼':'▶')+'</span>';
       h+='<span style="font-weight:600;min-width:90px">'+c+'</span>';
       h+='<span style="color:var(--text3);font-size:0.76rem;flex:1">'+dt.toLocaleDateString()+' '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' · '+fmtDur(t.duration||0)+' flight</span>';
-      if(tb.length)h+='<span style="font-size:0.78rem;color:var(--text2)">'+tb.length+' item'+(tb.length>1?'s':'')+'</span>';
-      if(tb.length)h+='<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+';min-width:90px;text-align:right">'+(tripProfit>=0?'+':'')+fmt(tripProfit)+'</span>';
+      h+='<span style="font-size:0.78rem;color:var(--text2)">'+tb.length+' item'+(tb.length>1?'s':'')+'</span>';
+      h+='<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+';min-width:90px;text-align:right">'+(tripProfit>=0?'+':'')+fmt(tripProfit)+'</span>';
       h+='</div>';
-      if(isOpen&&tb.length){
+      if(isOpen){
         h+='<div style="padding:0 8px 10px 30px"><table style="min-width:0"><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Paid/ea</th><th class="r">Sell/ea</th><th class="r">Profit/ea</th><th class="r">Total</th></tr></thead><tbody>';
         for(const b of tb){const d=itemInfo(b.item);const s=bestSell(b.item);const pe=s.val-b.costEach;const tp=pe*b.qty;const ppc=pe>0?'var(--green)':'var(--red)';
           h+='<tr><td style="font-weight:600">'+d.name+(s.npc?' <span style="color:var(--cyan);font-size:0.6rem">NPC</span>':'')+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+b.qty+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+fmt(b.costEach)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(Math.round(s.val))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:'+ppc+'">'+(pe>=0?'+':'')+fmt(Math.round(pe))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+ppc+'">'+(tp>=0?'+':'')+fmt(Math.round(tp))+'</td></tr>';
         }
         h+='</tbody></table></div>';
-      }else if(isOpen){h+='<div style="padding:0 8px 10px 30px;color:var(--text3);font-size:0.76rem">No items bought this trip</div>'}
+      }
       h+='</div>';
     }
     h+='</div>';
@@ -1391,6 +1398,15 @@ const BS=(function(){
 })();
 
 // ====== UNIFIED FETCH ======
+async function refreshSection(section){
+  const k=$('apiKey').value.trim();if(!k){toast('⚠️ Enter your API key');return}
+  try{localStorage.setItem('torn_api_key',k);localStorage.setItem('ffs_key',$('ffsKey').value.trim())}catch(e){}
+  try{
+    if(section==='stocks'){await ST.fetchAll()}
+    else if(section==='bounty'){await BS.fetchAll()}
+    else if(section==='travel'){await TV.refresh()}
+  }catch(e){toast('❌ '+e.message)}
+}
 async function fetchAllData(){
   const k=$('apiKey').value.trim();if(!k){toast('⚠️ Enter your API key');return}
   const btn=$('fetchAllBtn');btn.classList.add('loading');btn.disabled=true;
