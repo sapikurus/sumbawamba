@@ -212,6 +212,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
   </div>
   <div id="tvCurrentTravel"></div>
   <div id="tvDestChart"></div>
+  <div id="tvTripLog"></div>
   <div id="tvAwards"></div>
   <div class="tw" style="overflow:visible"><div class="tt">🌍 Foreign Item Profit <span class="badge">live market prices</span></div>
     <div style="padding:10px 14px;font-size:0.8rem;color:var(--text2)">Estimated profit per item = current Torn market price − foreign buy price, minus your sell discount. Sorted by profit per item. Set your carry capacity to see total trip profit.</div>
@@ -225,13 +226,12 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 // ====== TRAVEL MODULE (TV) ======
 const TV=(function(){
   // Foreign items by country (signature flowers/plushies + notable). id, name, country, buyPrice(approx foreign shop), type
-  // buyPrice is the foreign shop cost; we compare to live Torn market price.
-  // Foreign items are now driven by YOUR actual logged purchases (from Blobs history).
-  // MY_ITEMS is built dynamically from history.buys — no hardcoded list.
-  let MY_ITEMS=[];     // [{id,name,country,lastPaid,avgPaid,qty,buys}]
-  let ITEM_NAMES={};   // id -> name (resolved from Torn items API)
-  let PRICES={};       // id -> {low, avg}
+  // Foreign items driven by YOUR actual logged purchases (from Blobs history).
+  let MY_ITEMS=[];     // built dynamically from history.buys
+  let ITEM_DATA={};    // id -> {name, country, buyPrice, npcSell, marketRef} from Torn items API
+  let PRICES={};       // id -> {low, avg} live market
   let HISTORY=null,LOGGED_BUYS={};
+  const AREA_MAP={1:'Torn',2:'Mexico',3:'Cayman Islands',4:'Canada',5:'Hawaii',6:'China',7:'Argentina',8:'Switzerland',9:'Japan',10:'UAE',11:'United Kingdom',12:'South Africa'};
 
   // Award tiers
   const AWARDS_TIME=[{d:7,name:'Tourist'},{d:31,name:'Frequent Flyer'},{d:365,name:'Globetrotter'}];
@@ -302,28 +302,31 @@ const TV=(function(){
   }
 
   // Resolve item names from Torn items API (once)
-  async function loadItemNames(){
+  async function loadItemData(){
     const k=$('apiKey').value.trim();if(!k)return;
-    if(Object.keys(ITEM_NAMES).length)return;
-    try{const r=await fetch('https://api.torn.com/v2/torn/items?key='+encodeURIComponent(k));const j=await r.json();for(const it of (j.items||[]))ITEM_NAMES[it.id]=it.name}catch(e){}
+    if(Object.keys(ITEM_DATA).length)return;
+    try{
+      const r=await fetch('https://api.torn.com/v2/torn/items?key='+encodeURIComponent(k));const j=await r.json();
+      for(const it of (j.items||[])){
+        const v=it.value||{};
+        ITEM_DATA[it.id]={name:it.name,country:(v.vendor&&v.vendor.country)||'',buyPrice:v.buy_price||0,npcSell:v.sell_price||0,marketRef:v.market_price||0};
+      }
+    }catch(e){}
   }
-  // Build MY_ITEMS from your logged buys, then fetch live market price for each
+  // Build MY_ITEMS from your logged buys. Market price comes from the bulk items
+  // call (marketRef) — one API call for everything, no per-item loop = instant.
   async function loadPrices(){
     const k=$('apiKey').value.trim();if(!k)return false;
-    await loadItemNames();
-    // Aggregate buys per item from history
+    await loadItemData();
     const acc={};
     for(const b of ((HISTORY&&HISTORY.buys)||[])){
-      const id=b.item;if(!acc[id])acc[id]={id,qty:0,sum:0,n:0,last:b.costEach,lastTs:b.ts,country:b.country||''};
+      const id=b.item;if(!acc[id])acc[id]={id,qty:0,sum:0,n:0,last:b.costEach,lastTs:b.ts};
       acc[id].qty+=b.qty;acc[id].sum+=b.costEach*b.qty;acc[id].n+=b.qty;
-      if(b.ts>=acc[id].lastTs){acc[id].last=b.costEach;acc[id].lastTs=b.ts;acc[id].country=b.country||acc[id].country}
+      if(b.ts>=acc[id].lastTs){acc[id].last=b.costEach;acc[id].lastTs=b.ts}
     }
-    MY_ITEMS=Object.values(acc).map(a=>({id:a.id,name:ITEM_NAMES[a.id]||('#'+a.id),country:a.country,lastPaid:a.last,avgPaid:Math.round(a.sum/a.n),qty:a.qty}));
-    // Fetch market price for each item you actually buy
-    for(const it of MY_ITEMS){
-      try{const r=await fetch('https://api.torn.com/v2/market/'+it.id+'/itemmarket?key='+encodeURIComponent(k));const j=await r.json();const im=j.itemmarket||{},l=im.listings||[];PRICES[it.id]={low:l.length?l[0].price:0,avg:(im.item&&im.item.average_price)||0}}catch(e){}
-      await new Promise(r=>setTimeout(r,130));
-    }
+    MY_ITEMS=Object.values(acc).map(a=>{const d=ITEM_DATA[a.id]||{};return{id:a.id,name:d.name||('#'+a.id),country:d.country||'',npcSell:d.npcSell||0,lastPaid:a.last,avgPaid:Math.round(a.sum/a.n),qty:a.qty}});
+    // Market price from bulk items data (marketRef) — no per-item fetching
+    for(const it of MY_ITEMS){const d=ITEM_DATA[it.id]||{};PRICES[it.id]={low:d.marketRef||0,avg:d.marketRef||0}}
     return true;
   }
   function renderItems(){
@@ -335,13 +338,21 @@ const TV=(function(){
       $('tvItems').innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:0.85rem">'+(hasBuys?'Market prices not loaded yet.<br><button class="btn btn-primary" style="margin-top:10px" onclick="TV.loadPricesAndRender()">💰 Load Market Prices</button>':'No abroad purchases in your synced history yet.<br>Tap <b>🔄 Sync Log Now</b> to pull your travel buys.')+'</div>';
       return;
     }
-    const rows=MY_ITEMS.map(it=>{const p=PRICES[it.id]||{low:0,avg:0};const sell=p.low||p.avg||0;
-      const buy=it.lastPaid;const net=sell*(1-disc);const profit=net-buy;
-      return{...it,sell,buy,profit,tripProfit:profit*cap,totalProfit:profit*it.qty}}).sort((a,b)=>b.profit-a.profit);
-    let h='<table><thead><tr><th>Item</th><th>Bought In</th><th class="r">You Paid</th><th class="r">Market</th><th class="r">Profit/item</th><th class="r">Trip ('+cap+')</th><th class="r">Total Bought</th></tr></thead><tbody>';
-    for(const r of rows){const pc=r.profit>0?'var(--green)':'var(--red)';const sellTxt=r.sell>0?fmt(r.sell):'<span style="color:var(--text3)">—</span>';
-      h+='<tr><td style="font-weight:600">'+r.name+'</td><td style="color:var(--text2);font-size:0.8rem">'+(r.country||'—')+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+fmt(r.buy)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+sellTxt+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+'">'+(r.sell>0?(r.profit>=0?'+':'')+fmt(r.profit):'—')+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+'">'+(r.sell>0?(r.tripProfit>=0?'+':'')+fmt(r.tripProfit):'—')+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text2)">'+fN(r.qty)+'</td></tr>'}
-    h+='</tbody></table><div style="padding:8px 14px;font-size:0.7rem;color:var(--text3)">Built from YOUR actual abroad purchases · "You Paid" = your most recent price · sell discount '+(disc*100)+'% applied to market price</div>';$('tvItems').innerHTML=h;
+    const rows=MY_ITEMS.map(it=>{
+      const p=PRICES[it.id]||{low:0,avg:0};const mkt=p.low||p.avg||0;
+      const mktNet=mkt*(1-disc);          // market sale minus your discount
+      const npc=it.npcSell||0;             // NPC full price, no fee
+      // Best sell = higher of NPC (no fee) vs discounted market
+      const useNpc=npc>mktNet && npc>0;
+      const sell=useNpc?npc:mktNet;
+      const buy=it.lastPaid;const profit=sell-buy;
+      return{...it,mkt,npc,sell,useNpc,buy,profit,tripProfit:profit*cap}}).sort((a,b)=>b.profit-a.profit);
+    let h='<table><thead><tr><th>Item</th><th>Bought In</th><th class="r">You Paid</th><th class="r">Market</th><th class="r">NPC</th><th class="r">Best Sell</th><th class="r">Profit/item</th><th class="r">Trip ('+cap+')</th><th class="r">Qty</th></tr></thead><tbody>';
+    for(const r of rows){const pc=r.profit>0?'var(--green)':'var(--red)';
+      const mktTxt=r.mkt>0?fmt(r.mkt):'—';const npcTxt=r.npc>0?fmt(r.npc):'<span style="color:var(--text3)">—</span>';
+      const bestTag=r.useNpc?' <span style="color:var(--cyan);font-size:0.6rem" title="NPC full price, no fee">NPC</span>':'';
+      h+='<tr><td style="font-weight:600">'+r.name+'</td><td style="color:var(--text2);font-size:0.8rem">'+(r.country||'—')+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+fmt(r.buy)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text2)">'+mktTxt+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text2)">'+npcTxt+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600">'+fmt(r.sell)+bestTag+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+'">'+(r.profit>=0?'+':'')+fmt(r.profit)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+'">'+(r.tripProfit>=0?'+':'')+fmt(r.tripProfit)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text2)">'+fN(r.qty)+'</td></tr>'}
+    h+='</tbody></table><div style="padding:8px 14px;font-size:0.7rem;color:var(--text3)">Built from your actual buys · <span style="color:var(--cyan)">NPC</span> = sells to vendor at full price (no fee), auto-picked when it beats discounted market · sell discount '+(disc*100)+'% applied to market</div>';$('tvItems').innerHTML=h;
   }
   async function loadPricesAndRender(){$('tvItems').innerHTML='<div style="padding:24px;text-align:center;color:var(--text3)">Loading your items + market prices...</div>';await loadPrices();renderItems()}
 
@@ -353,24 +364,38 @@ const TV=(function(){
       const j=await r.json();
       HISTORY=j;
       renderDestChart();renderStockHist();
-      // Build items from buys and load their prices
-      await loadPrices();renderItems();
+      // Build items from buys and load their prices, then render trip log with profit
+      await loadPrices();renderItems();renderTripLog();
       if(j.updated)$('tvSyncInfo').textContent='History updated '+new Date(j.updated*1000).toLocaleString()+' · '+(j.travel||[]).length+' trips, '+(j.buys||[]).length+' buys logged';
       $('tvStatusText').textContent='History loaded';$('tvStatusDot').className='status-dot ok';
     }catch(e){$('tvSyncInfo').textContent='⚠ History not available (deploy Netlify functions first)';$('tvStatusText').textContent='No history backend'}
   }
   async function resetHistory(){
-    if(!confirm('This wipes stored travel history and rebuilds it fresh from your Torn log (fixes old wrong-country data). Continue?'))return;
+    if(!confirm('This wipes stored history and rebuilds your ENTIRE log from the beginning. It runs in chunks and may take a minute or two. Continue?'))return;
     let secret=null;try{secret=localStorage.getItem('sync_secret')}catch(e){}
     if(!secret){secret=prompt('Enter your sync secret to reset.');if(!secret)return;try{localStorage.setItem('sync_secret',secret)}catch(e){}}
-    $('tvStatusText').textContent='Resetting & rebuilding history...';$('tvStatusDot').className='status-dot loading';
+    $('tvStatusDot').className='status-dot loading';
     try{
-      const r=await fetch('/.netlify/functions/sync-log?reset=1&secret='+encodeURIComponent(secret));
-      const j=await r.json();
-      if(j.error){if(r.status===401||r.status===403){try{localStorage.removeItem('sync_secret')}catch(e){}toast('❌ Wrong secret — cleared');}else toast('❌ '+j.error);return}
-      toast('🗑 Rebuilt: '+j.total.travel+' trips, '+j.total.buys+' buys, '+j.total.stocks+' stock tx');
+      // First call: reset + start backfill
+      $('tvStatusText').textContent='Wiping & starting full rebuild...';
+      let r=await fetch('/.netlify/functions/sync-log?reset=1&backfill=1&secret='+encodeURIComponent(secret));
+      let j=await r.json();
+      if(j.error){if(r.status===401||r.status===403){try{localStorage.removeItem('sync_secret')}catch(e){}toast('❌ Wrong secret — cleared');}else toast('❌ '+j.error);$('tvStatusText').textContent='Reset error';return}
+      let round=1;
+      // Keep pulling older pages until backfill complete
+      while(j.backfillMore){
+        round++;
+        $('tvStatusText').textContent='Backfilling history... ('+j.total.travel+' trips, '+j.total.buys+' buys so far)';
+        $('tvSyncInfo').textContent='Deep pull round '+round+' — please wait, don\'t close';
+        await new Promise(res=>setTimeout(res,900)); // pace between chunk calls
+        r=await fetch('/.netlify/functions/sync-log?backfill=1&secret='+encodeURIComponent(secret));
+        j=await r.json();
+        if(j.error){toast('⚠ Backfill paused: '+j.error);break}
+        if(round>80){toast('⚠ Stopped at 80 rounds (very long history)');break}
+      }
+      toast('✅ Full history rebuilt: '+j.total.travel+' trips, '+j.total.buys+' buys, '+j.total.stocks+' stock tx');
       MY_ITEMS=[];PRICES={};await loadHistory();
-    }catch(e){toast('❌ '+e.message)}
+    }catch(e){toast('❌ '+e.message);$('tvStatusText').textContent='Reset error'}
   }
   async function syncNow(){
     let secret=null;
@@ -393,6 +418,7 @@ const TV=(function(){
       await loadHistory();
     }catch(e){toast('❌ '+e.message);$('tvSyncInfo').textContent='⚠ Sync needs Netlify functions deployed'}
   }
+  function ctry(t){return t.country||AREA_MAP[t.area]||('Area '+t.area)}
   function renderDestChart(){
     if(!HISTORY||!HISTORY.travel||!HISTORY.travel.length){$('tvDestChart').innerHTML='';return}
     const win=(typeof localStorage!=='undefined'&&localStorage.getItem('tv_window'))||'month';
@@ -401,7 +427,7 @@ const TV=(function(){
     const trips=HISTORY.travel.filter(t=>t.ts>=cutoff);
     // Count by country + total flight time
     const byCountry={};let totalDur=0;
-    for(const t of trips){byCountry[t.country]=(byCountry[t.country]||0)+1;totalDur+=t.duration||0}
+    for(const t of trips){const c=ctry(t);byCountry[c]=(byCountry[c]||0)+1;totalDur+=t.duration||0}
     const sorted=Object.entries(byCountry).sort((a,b)=>b[1]-a[1]);
     const maxC=sorted.length?sorted[0][1]:1;
     let h='<div class="tw"><div class="tt">🗺️ Destinations '+'<span class="badge badge-g">'+trips.length+' trips</span>'+'</div>';
@@ -413,7 +439,68 @@ const TV=(function(){
     if(sorted.length){for(const[country,count]of sorted){const pct=count/maxC*100;h+='<div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:0.8rem"><span style="width:110px">'+country+'</span><div style="flex:1;height:16px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:100px"><div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:4px"></div></div><span style="width:36px;text-align:right;font-family:JetBrains Mono,monospace;font-weight:600">'+count+'</span></div>'}}else h+='<div style="color:var(--text3);text-align:center;padding:16px">No trips in this window</div>';
     h+='</div></div>';$('tvDestChart').innerHTML=h;
   }
-  function setWindow(w){try{localStorage.setItem('tv_window',w)}catch(e){}renderDestChart()}
+  function setWindow(w){try{localStorage.setItem('tv_window',w)}catch(e){}renderDestChart();renderTripLog()}
+
+  // Expandable per-trip log (like the flight log app): each trip shows its items + profit
+  function renderTripLog(){
+    const el=$('tvTripLog');if(!el)return;
+    if(!HISTORY||!HISTORY.travel||!HISTORY.travel.length){el.innerHTML='';return}
+    const win=(typeof localStorage!=='undefined'&&localStorage.getItem('tv_window'))||'month';
+    const now=Date.now()/1000;const spans={day:86400,week:604800,month:2592000,year:31536000};
+    const cutoff=now-(spans[win]||2592000);
+    const disc=parseFloat(($('tvDiscount')||{}).value||5)/100;
+    // Sort trips newest first, within window
+    const trips=HISTORY.travel.filter(t=>t.ts>=cutoff).sort((a,b)=>b.ts-a.ts);
+    const buys=[...(HISTORY.buys||[])].sort((a,b)=>b.ts-a.ts);
+    // Match buys to a trip: a buy belongs to the most recent trip that departed before it,
+    // within a reasonable window (buys happen abroad shortly after arrival).
+    // Simpler + robust: attach each buy to the nearest trip by timestamp (buy occurs after depart).
+    function itemInfo(id){return ITEM_DATA[id]||{name:'#'+id,npcSell:0}}
+    function bestSell(id){const d=itemInfo(id);const p=PRICES[id]||{};const mkt=(p.low||p.avg||d.marketRef||0);const mktNet=mkt*(1-disc);const npc=d.npcSell||0;return npc>mktNet&&npc>0?{val:npc,npc:true}:{val:mktNet,npc:false}}
+    // Group buys by trip: assign buy to trip if buy.ts within [trip.ts, trip.ts + 6h]
+    const tripBuys={};
+    for(const t of trips)tripBuys[t.id]=[];
+    for(const b of buys){
+      // find trip departing just before this buy
+      let best=null;
+      for(const t of trips){ if(t.ts<=b.ts && b.ts-t.ts<21600){ if(!best||t.ts>best.ts)best=t } }
+      if(best)tripBuys[best.id].push(b);
+    }
+    let totalProfit=0,totalSpent=0;
+    let h='<div class="tw"><div class="tt">🛫 Flight Log <span class="badge badge-g">'+trips.length+' trips this '+win+'</span></div>';
+    h+='<div style="padding:10px 14px;font-size:0.78rem;color:var(--text3)">Tap a trip to expand its items, prices, and profit. Profit uses best of NPC/market sell.</div><div style="padding:0 6px 10px">';
+    if(!trips.length)h+='<div style="padding:20px;text-align:center;color:var(--text3)">No trips in this window</div>';
+    for(const t of trips){
+      const c=ctry(t);const tb=tripBuys[t.id]||[];
+      let tripProfit=0,tripSpent=0;
+      for(const b of tb){const s=bestSell(b.item);tripProfit+=(s.val-b.costEach)*b.qty;tripSpent+=b.costEach*b.qty}
+      totalProfit+=tripProfit;totalSpent+=tripSpent;
+      const dt=new Date(t.ts*1000);const oid='trip_'+t.id;
+      const isOpen=window._openTrips&&window._openTrips[t.id];
+      const pc=tripProfit>0?'var(--green)':tripProfit<0?'var(--red)':'var(--text3)';
+      h+='<div style="border-bottom:1px solid rgba(42,53,80,0.4)">';
+      h+='<div onclick="TV.toggleTrip(\''+t.id+'\')" style="cursor:pointer;padding:10px 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+      h+='<span style="color:var(--text3);font-size:0.75rem">'+(isOpen?'▼':'▶')+'</span>';
+      h+='<span style="font-weight:600;min-width:90px">'+c+'</span>';
+      h+='<span style="color:var(--text3);font-size:0.76rem;flex:1">'+dt.toLocaleDateString()+' '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' · '+fmtDur(t.duration||0)+' flight</span>';
+      if(tb.length)h+='<span style="font-size:0.78rem;color:var(--text2)">'+tb.length+' item'+(tb.length>1?'s':'')+'</span>';
+      if(tb.length)h+='<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+';min-width:90px;text-align:right">'+(tripProfit>=0?'+':'')+fmt(tripProfit)+'</span>';
+      h+='</div>';
+      if(isOpen&&tb.length){
+        h+='<div style="padding:0 8px 10px 30px"><table style="min-width:0"><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Paid/ea</th><th class="r">Sell/ea</th><th class="r">Profit/ea</th><th class="r">Total</th></tr></thead><tbody>';
+        for(const b of tb){const d=itemInfo(b.item);const s=bestSell(b.item);const pe=s.val-b.costEach;const tp=pe*b.qty;const ppc=pe>0?'var(--green)':'var(--red)';
+          h+='<tr><td style="font-weight:600">'+d.name+(s.npc?' <span style="color:var(--cyan);font-size:0.6rem">NPC</span>':'')+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+b.qty+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+fmt(b.costEach)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(Math.round(s.val))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:'+ppc+'">'+(pe>=0?'+':'')+fmt(Math.round(pe))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+ppc+'">'+(tp>=0?'+':'')+fmt(Math.round(tp))+'</td></tr>';
+        }
+        h+='</tbody></table></div>';
+      }else if(isOpen){h+='<div style="padding:0 8px 10px 30px;color:var(--text3);font-size:0.76rem">No items bought this trip</div>'}
+      h+='</div>';
+    }
+    h+='</div>';
+    // Summary footer
+    h+='<div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:0.85rem"><span style="color:var(--text2)">This '+win+': spent <b>'+fmt(totalSpent)+'</b></span><span style="font-weight:600;color:'+(totalProfit>=0?'var(--green)':'var(--red)')+'">Total profit '+(totalProfit>=0?'+':'')+fmt(totalProfit)+'</span></div>';
+    h+='</div>';el.innerHTML=h;
+  }
+  function toggleTrip(id){if(!window._openTrips)window._openTrips={};window._openTrips[id]=!window._openTrips[id];renderTripLog()}
 
   function renderStockHist(){
     const el=$('stStockHist');if(!el)return;
@@ -437,7 +524,7 @@ const TV=(function(){
   }
   function toggleStockHist(){window._stockHistOpen=!window._stockHistOpen;renderStockHist()}
 
-  return{refresh,renderItems,loadHistory,syncNow,resetHistory,renderDestChart,renderStockHist,setWindow,loadPricesAndRender,toggleStockHist};
+  return{refresh,renderItems,loadHistory,syncNow,resetHistory,renderDestChart,renderStockHist,renderTripLog,setWindow,loadPricesAndRender,toggleStockHist,toggleTrip};
 })();
 </script>
 
