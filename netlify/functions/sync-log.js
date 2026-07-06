@@ -48,7 +48,9 @@ async function doSync(KEY, opts){
     to=Math.min(...log.map(e=>e.timestamp))-1;
     pages++;
     if(!backfill && hitOld){ break }
-    if(log.length<100){ oldestReached=true; break } // last page
+    // Only stop backfill when a page comes back EMPTY. A short page (e.g. 98)
+    // is NOT the end — Torn returns variable page sizes mid-history.
+    if(log.length===0){ oldestReached=true; break }
     await new Promise(r=>setTimeout(r,THROTTLE));
   }
 
