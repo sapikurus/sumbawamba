@@ -40,3 +40,6 @@ Share the FILES (this folder), not your site. Your friend deploys his own Netlif
 | Limited key | app input box (browser) | live stocks/bounties/travel/prices |
 | Full key | Netlify env var only | scheduled/manual log sync (server-side) |
 | Sync secret | Netlify env var + entered once in-app | authorises the manual sync button |
+
+## Full history backfill (backfill-background.js)
+`backfill-background.js` is a Netlify **Background Function** (note the `-background` suffix — required). It runs up to 15 minutes server-side to pull your entire Torn log history. Triggered by the "Reset & Rebuild" / "Resume Backfill" buttons under ⚙ Advanced on the Travel tab. Because it runs on Netlify's servers (not your browser), you can close the tab and it keeps running. The app polls `get-history` to show live progress. Requires `TORN_FULL_KEY` and `SYNC_SECRET` env vars (same as sync-log).

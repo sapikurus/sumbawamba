@@ -376,39 +376,54 @@ const TV=(function(){
       $('tvStatusText').textContent='History loaded';$('tvStatusDot').className='status-dot ok';
     }catch(e){$('tvSyncInfo').textContent='⚠ History not available (deploy Netlify functions first)';$('tvStatusText').textContent='No history backend'}
   }
-  async function runBackfill(secret,firstUrl){
+  // Trigger the server-side BACKGROUND function (runs up to 15min, no browser loop),
+  // then poll get-history to show progress. You can close the tab; it keeps running.
+  async function runBackfill(secret,reset){
     $('tvStatusDot').className='status-dot loading';
-    let r=await fetch(firstUrl);let j=await r.json();
-    if(j.error){if(r.status===401||r.status===403){try{localStorage.removeItem('sync_secret')}catch(e){}toast('❌ Wrong secret — cleared');}else toast('❌ '+j.error);$('tvStatusText').textContent='Backfill error';return false}
-    let round=1,fails=0;
-    while(j.backfillMore){
-      round++;
-      $('tvStatusText').textContent='Backfilling... '+j.total.travel+' trips, '+j.total.buys+' buys so far';
-      $('tvSyncInfo').textContent='Round '+round+' — pulling older history (safe to leave running)';
-      await new Promise(res=>setTimeout(res,400));
+    $('tvStatusText').textContent='Starting server-side backfill...';
+    try{
+      // Kick off background function (returns 202 immediately)
+      const url='/.netlify/functions/backfill-background?secret='+encodeURIComponent(secret)+(reset?'&reset=1':'');
+      const r=await fetch(url);
+      if(r.status===403){try{localStorage.removeItem('sync_secret')}catch(e){}toast('❌ Wrong secret — cleared');$('tvStatusText').textContent='Backfill error';return false}
+      toast('🚀 Backfill started on server — you can close this tab, it keeps running');
+    }catch(e){toast('❌ '+e.message);return false}
+    // Poll progress every 5s
+    let stable=0,lastCount=-1;
+    const poll=async()=>{
       try{
-        r=await fetch('/.netlify/functions/sync-log?backfill=1&secret='+encodeURIComponent(secret));
-        j=await r.json();
-        if(j.error){fails++;if(fails>=3){toast('⚠ Paused after 3 errors: '+j.error+' — tap Resume Backfill to continue');$('tvStatusText').textContent='Backfill paused (tap Resume)';return false}await new Promise(res=>setTimeout(res,3000));continue}
-        fails=0;
-      }catch(e){fails++;if(fails>=3){toast('⚠ Network paused — tap Resume Backfill to continue');$('tvStatusText').textContent='Backfill paused (tap Resume)';return false}await new Promise(res=>setTimeout(res,3000));continue}
-      if(round>500){toast('⚠ Stopped at 500 rounds — tap Resume to continue if needed');break}
-    }
-    toast('✅ History complete: '+j.total.travel+' trips, '+j.total.buys+' buys, '+j.total.stocks+' stock tx');
-    $('tvSyncInfo').textContent='';MY_ITEMS=[];PRICES={};await loadHistory();return true;
+        const r=await fetch('/.netlify/functions/get-history');const j=await r.json();
+        HISTORY=j;
+        const cnt=(j.travel||[]).length+(j.buys||[]).length;
+        if(j.backfillRunning){
+          $('tvStatusText').textContent='Backfilling on server... '+(j.travel||[]).length+' trips, '+(j.buys||[]).length+' buys';
+          $('tvSyncInfo').textContent='Running server-side — safe to close tab. Oldest so far: '+(j.backfillCursor?new Date(j.backfillCursor*1000).toLocaleDateString():'...');
+          setTimeout(poll,5000);
+        }else if(j.backfillDone){
+          $('tvStatusText').textContent='✅ Full history complete';$('tvStatusDot').className='status-dot ok';
+          $('tvSyncInfo').textContent='Done — '+(j.travel||[]).length+' trips, '+(j.buys||[]).length+' buys';
+          MY_ITEMS=[];PRICES={};await loadHistory();
+        }else{
+          // Not marked running or done — either finished a time-slice (15min cap) or errored
+          if(j.backfillError){toast('⚠ Backfill error: '+j.backfillError+' — tap Resume to continue')}
+          else if(cnt>0){$('tvStatusText').textContent='Backfill paused (time limit) — tap Resume to continue';$('tvSyncInfo').textContent=(j.travel||[]).length+' trips so far. Tap ▶ Resume Backfill.'}
+          MY_ITEMS=[];PRICES={};await loadHistory();
+        }
+      }catch(e){setTimeout(poll,6000)}
+    };
+    setTimeout(poll,4000);
+    return true;
   }
   async function resetHistory(){
-    if(!confirm('This WIPES stored history and rebuilds your ENTIRE log from scratch. May take a few minutes for long histories. Continue?'))return;
+    if(!confirm('This WIPES stored history and rebuilds your ENTIRE log from scratch on the server. You can close the tab once it starts. Continue?'))return;
     let secret=null;try{secret=localStorage.getItem('sync_secret')}catch(e){}
     if(!secret){secret=prompt('Enter your sync secret to reset.');if(!secret)return;try{localStorage.setItem('sync_secret',secret)}catch(e){}}
-    $('tvStatusText').textContent='Wiping & starting full rebuild...';
-    await runBackfill(secret,'/.netlify/functions/sync-log?reset=1&backfill=1&secret='+encodeURIComponent(secret));
+    await runBackfill(secret,true);
   }
   async function resumeBackfill(){
     let secret=null;try{secret=localStorage.getItem('sync_secret')}catch(e){}
     if(!secret){secret=prompt('Enter your sync secret.');if(!secret)return;try{localStorage.setItem('sync_secret',secret)}catch(e){}}
-    $('tvStatusText').textContent='Resuming backfill from where it stopped...';
-    await runBackfill(secret,'/.netlify/functions/sync-log?backfill=1&secret='+encodeURIComponent(secret));
+    await runBackfill(secret,false);
   }
   async function syncNow(){
     let secret=null;
