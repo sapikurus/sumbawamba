@@ -215,16 +215,17 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
     <span style="font-size:0.68rem;color:var(--text3)">One-time: wipes stored history & re-pulls your entire Torn log from the start. Only needed once.</span>
   </div>
   <div id="tvCurrentTravel"></div>
-  <div id="tvDestChart"></div>
-  <div id="tvTripLog"></div>
-  <div id="tvAwards"></div>
   <div class="tw" style="overflow:visible"><div class="tt">⚙️ Profit Settings</div>
-    <div style="padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="font-size:0.75rem;color:var(--text3)">Carry capacity:</label><input type="number" id="tvCapacity" value="27" min="1" max="88" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-family:JetBrains Mono,monospace" onchange="try{localStorage.setItem('tv_capacity',this.value)}catch(e){};TV.renderTripLog()"><span style="font-size:0.72rem;color:var(--text3)">items/trip</span><label style="font-size:0.75rem;color:var(--text3);margin-left:8px">Sell discount:</label><input type="range" id="tvDiscount" min="0" max="10" step="0.5" value="5" style="width:100px;accent-color:var(--orange)" oninput="$('tvDiscVal').textContent=this.value+'%';TV.renderTripLog()"><span id="tvDiscVal" style="font-family:JetBrains Mono,monospace;font-size:0.8rem;color:var(--orange);font-weight:600">5%</span></div>
-    <div style="padding:0 14px 12px;font-size:0.72rem;color:var(--text3)">Applied to the Flight Log profit calculations above. NPC full-price sells (no fee) are auto-detected per item.</div>
+    <div style="padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="font-size:0.75rem;color:var(--text3)">Carry capacity:</label><input type="number" id="tvCapacity" value="27" min="1" max="88" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-family:JetBrains Mono,monospace" onchange="try{localStorage.setItem('tv_capacity',this.value)}catch(e){};TV.renderPeriod()"><span style="font-size:0.72rem;color:var(--text3)">items/trip</span><label style="font-size:0.75rem;color:var(--text3);margin-left:8px">Sell discount:</label><input type="range" id="tvDiscount" min="0" max="10" step="0.5" value="5" style="width:100px;accent-color:var(--orange)" oninput="$('tvDiscVal').textContent=this.value+'%';TV.renderPeriod()"><span id="tvDiscVal" style="font-family:JetBrains Mono,monospace;font-size:0.8rem;color:var(--orange);font-weight:600">5%</span></div>
+    <div style="padding:0 14px 12px;font-size:0.72rem;color:var(--text3)">All times are Torn time (GMT). Your local time (Indonesia, UTC+7) is 7 hours ahead — Torn midnight = 07:00 your time. NPC full-price sells (no fee) auto-detected per item.</div>
   </div>
+  <div id="tvPeriodBrowser"></div>
+  <div id="tvAwards"></div>
 </main>
 </div>
 <div id="tvItems" style="display:none"></div>
+<div id="tvDestChart" style="display:none"></div>
+<div id="tvTripLog" style="display:none"></div>
 
 <script>
 // ====== TRAVEL MODULE (TV) ======
@@ -367,9 +368,9 @@ const TV=(function(){
       const r=await fetch('/.netlify/functions/get-history');
       const j=await r.json();
       HISTORY=j;
-      renderDestChart();renderStockHist();
+      renderStockHist();
       // Build items from buys and load their prices, then render trip log with profit
-      await loadPrices();renderItems();renderTripLog();
+      await loadPrices();renderItems();renderPeriod();
       if(j.updated)$('tvSyncInfo').textContent='History updated '+new Date(j.updated*1000).toLocaleString()+' · '+(j.travel||[]).length+' trips, '+(j.buys||[]).length+' buys logged';
       $('tvStatusText').textContent='History loaded';$('tvStatusDot').className='status-dot ok';
     }catch(e){$('tvSyncInfo').textContent='⚠ History not available (deploy Netlify functions first)';$('tvStatusText').textContent='No history backend'}
@@ -434,107 +435,150 @@ const TV=(function(){
     }
     return ctry(t);
   }
-  function renderDestChart(){
-    if(!HISTORY||!HISTORY.travel||!HISTORY.travel.length){$('tvDestChart').innerHTML='';return}
-    const win=(typeof localStorage!=='undefined'&&localStorage.getItem('tv_window'))||'month';
-    const now=Date.now()/1000;const spans={day:86400,week:604800,month:2592000,year:31536000};
-    const cutoff=now-(spans[win]||2592000);
-    const trips=HISTORY.travel.filter(t=>t.ts>=cutoff);
-    const buys=[...(HISTORY.buys||[])];
-    // Match buys to trips for country labeling
+  // ======== PERIOD BROWSER (GMT calendar periods) ========
+  // Periods: day / week(Mon-Sun) / month / year. Navigate older/newer. All GMT.
+  function periodBounds(type, offset){
+    // offset: 0 = current period, -1 = previous, +1 = next
+    const now=new Date();
+    const Y=now.getUTCFullYear(),M=now.getUTCMonth(),D=now.getUTCDate();
+    let start,end,label;
+    if(type==='day'){
+      const s=Date.UTC(Y,M,D+offset,0,0,0)/1000;start=s;end=s+86400-1;
+      const dd=new Date(s*1000);label=dd.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+    }else if(type==='week'){
+      const day=now.getUTCDay(),diffToMon=(day===0?6:day-1);
+      const mon=Date.UTC(Y,M,D-diffToMon+offset*7,0,0,0)/1000;start=mon;end=mon+7*86400-1;
+      const s=new Date(start*1000),e=new Date(end*1000);
+      label='Week of '+s.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'UTC'})+' – '+e.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+    }else if(type==='month'){
+      const s=Date.UTC(Y,M+offset,1,0,0,0)/1000;const e=Date.UTC(Y,M+offset+1,1,0,0,0)/1000-1;start=s;end=e;
+      label=new Date(s*1000).toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'});
+    }else{ // year
+      const s=Date.UTC(Y+offset,0,1,0,0,0)/1000;const e=Date.UTC(Y+offset+1,0,1,0,0,0)/1000-1;start=s;end=e;
+      label=String(Y+offset);
+    }
+    return{start,end,label};
+  }
+  // Sub-periods for the profit breakdown table (b): year->months, month->days, week->days, day->trips
+  function subPeriods(type,start,end){
+    const out=[];
+    if(type==='year'){
+      const y=new Date(start*1000).getUTCFullYear();
+      for(let m=0;m<12;m++){const s=Date.UTC(y,m,1)/1000,e=Date.UTC(y,m+1,1)/1000-1;out.push({s,e,label:new Date(s*1000).toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'})})}
+    }else if(type==='month'){
+      const d0=new Date(start*1000),y=d0.getUTCFullYear(),m=d0.getUTCMonth();const days=new Date(Date.UTC(y,m+1,0)).getUTCDate();
+      for(let d=1;d<=days;d++){const s=Date.UTC(y,m,d)/1000,e=Date.UTC(y,m,d+1)/1000-1;out.push({s,e,label:String(d)})}
+    }else if(type==='week'){
+      for(let i=0;i<7;i++){const s=start+i*86400,e=s+86400-1;out.push({s,e,label:new Date(s*1000).toLocaleDateString('en-GB',{weekday:'short',timeZone:'UTC'})})}
+    } // day handled inline (per-trip)
+    return out;
+  }
+
+  function tripBuysMap(trips,buys){
     const tb={};for(const t of trips)tb[t.id]=[];
     for(const b of buys){let best=null;for(const t of trips){if(t.ts<=b.ts&&b.ts-t.ts<21600){if(!best||t.ts>best.ts)best=t}}if(best)tb[best.id].push(b)}
-    // Count by country (item-derived) + total flight time
-    const byCountry={};let totalDur=0;
-    for(const t of trips){const c=tripCountry(t,tb[t.id]);byCountry[c]=(byCountry[c]||0)+1;totalDur+=t.duration||0}
-    const sorted=Object.entries(byCountry).sort((a,b)=>b[1]-a[1]);
-    const maxC=sorted.length?sorted[0][1]:1;
-    let h='<div class="tw"><div class="tt">🗺️ Destinations '+'<span class="badge badge-g">'+trips.length+' trips</span>'+'</div>';
-    h+='<div style="padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap">';
-    for(const[w,lbl]of[['day','Day'],['week','Week'],['month','Month'],['year','Year']])h+='<button onclick="TV.setWindow(\''+w+'\')" class="btn" style="font-size:0.7rem;padding:4px 10px;background:'+(win===w?'var(--bg4)':'var(--bg2)')+';color:var(--text);border:1px solid var(--border)">'+lbl+'</button>';
-    h+='</div>';
-    h+='<div style="padding:0 14px 8px;font-size:0.8rem;color:var(--text2)">Total flight time this '+win+': <b style="color:var(--cyan)">'+fmtDur(totalDur)+'</b></div>';
-    h+='<div style="padding:0 14px 14px">';
-    if(sorted.length){for(const[country,count]of sorted){const pct=count/maxC*100;h+='<div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:0.8rem"><span style="width:110px">'+country+'</span><div style="flex:1;height:16px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:100px"><div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:4px"></div></div><span style="width:36px;text-align:right;font-family:JetBrains Mono,monospace;font-weight:600">'+count+'</span></div>'}}else h+='<div style="color:var(--text3);text-align:center;padding:16px">No trips in this window</div>';
-    h+='</div></div>';$('tvDestChart').innerHTML=h;
+    return tb;
   }
-  function setWindow(w){try{localStorage.setItem('tv_window',w)}catch(e){}window._tripPage=0;renderDestChart();renderTripLog()}
+  function bestSell(id,disc){const d=ITEM_DATA[id]||{};const p=PRICES[id]||{};const mkt=(p.low||p.avg||d.marketRef||0);const mktNet=mkt*(1-disc);const npc=d.npcSell||0;return npc>mktNet&&npc>0?{val:npc,npc:true}:{val:mktNet,npc:false}}
 
-  // Expandable per-trip log (like the flight log app): each trip shows its items + profit
-  function renderTripLog(){
-    const el=$('tvTripLog');if(!el)return;
+  function renderPeriod(){
+    const el=$('tvPeriodBrowser');if(!el)return;
     try{const sv=localStorage.getItem('tv_capacity');if(sv&&$('tvCapacity')&&$('tvCapacity').value==='27'&&!window._capRestored){$('tvCapacity').value=sv;window._capRestored=true}}catch(e){}
-    if(!HISTORY||!HISTORY.travel||!HISTORY.travel.length){el.innerHTML='';return}
-    const win=(typeof localStorage!=='undefined'&&localStorage.getItem('tv_window'))||'month';
-    const now=Date.now()/1000;const spans={day:86400,week:604800,month:2592000,year:31536000};
-    const cutoff=now-(spans[win]||2592000);
+    if(!HISTORY||!HISTORY.travel){el.innerHTML='';return}
+    const type=window._periodType||(localStorage.getItem('tv_ptype')||'week');
+    const offset=window._periodOffset||0;
+    const cap=parseInt($('tvCapacity').value)||27;
     const disc=parseFloat(($('tvDiscount')||{}).value||5)/100;
-    // Sort trips newest first, within window
-    const trips=HISTORY.travel.filter(t=>t.ts>=cutoff).sort((a,b)=>b.ts-a.ts);
-    const buys=[...(HISTORY.buys||[])].sort((a,b)=>b.ts-a.ts);
-    // Match buys to a trip: a buy belongs to the most recent trip that departed before it,
-    // within a reasonable window (buys happen abroad shortly after arrival).
-    // Simpler + robust: attach each buy to the nearest trip by timestamp (buy occurs after depart).
-    function itemInfo(id){return ITEM_DATA[id]||{name:'#'+id,npcSell:0}}
-    function bestSell(id){const d=itemInfo(id);const p=PRICES[id]||{};const mkt=(p.low||p.avg||d.marketRef||0);const mktNet=mkt*(1-disc);const npc=d.npcSell||0;return npc>mktNet&&npc>0?{val:npc,npc:true}:{val:mktNet,npc:false}}
-    // Group buys by trip: assign buy to trip if buy.ts within [trip.ts, trip.ts + 6h]
-    const tripBuys={};
-    for(const t of trips)tripBuys[t.id]=[];
-    for(const b of buys){
-      // find trip departing just before this buy
-      let best=null;
-      for(const t of trips){ if(t.ts<=b.ts && b.ts-t.ts<21600){ if(!best||t.ts>best.ts)best=t } }
-      if(best)tripBuys[best.id].push(b);
-    }
-    // Compute totals across ALL shown trips (not just current page)
-    const shownTrips=trips.filter(t=>(tripBuys[t.id]||[]).length>0);
-    let totalProfit=0,totalSpent=0;
-    for(const t of shownTrips){for(const b of tripBuys[t.id]){const s=bestSell(b.item);totalProfit+=(s.val-b.costEach)*b.qty;totalSpent+=b.costEach*b.qty}}
-    // Pagination: 10 per page
-    const PER=10;const page=window._tripPage||0;const totalPages=Math.ceil(shownTrips.length/PER);
-    const pageTrips=shownTrips.slice(page*PER,page*PER+PER);
-    let h='<div class="tw"><div class="tt">🛫 Flight Log <span class="badge badge-g">'+shownTrips.length+' buying trips this '+win+'</span></div>';
-    h+='<div style="padding:10px 14px;font-size:0.78rem;color:var(--text3)">Tap a trip to expand its items, prices, and profit. Return legs (no purchases) are hidden.</div><div style="padding:0 6px 10px">';
-    if(!shownTrips.length)h+='<div style="padding:20px;text-align:center;color:var(--text3)">No buying trips in this window</div>';
-    for(const t of pageTrips){
-      const tb=tripBuys[t.id]||[];const c=tripCountry(t,tb);
-      let tripProfit=0;
-      for(const b of tb){const s=bestSell(b.item);tripProfit+=(s.val-b.costEach)*b.qty}
-      const dt=new Date(t.ts*1000);
-      const isOpen=window._openTrips&&window._openTrips[t.id];
-      const pc=tripProfit>0?'var(--green)':tripProfit<0?'var(--red)':'var(--text3)';
-      h+='<div style="border-bottom:1px solid rgba(42,53,80,0.4)">';
-      h+='<div onclick="TV.toggleTrip(\''+t.id+'\')" style="cursor:pointer;padding:10px 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
-      h+='<span style="color:var(--text3);font-size:0.75rem">'+(isOpen?'▼':'▶')+'</span>';
-      h+='<span style="font-weight:600;min-width:90px">'+c+'</span>';
-      h+='<span style="color:var(--text3);font-size:0.76rem;flex:1">'+dt.toLocaleDateString()+' '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' · '+fmtDur(t.duration||0)+' flight</span>';
-      h+='<span style="font-size:0.78rem;color:var(--text2)">'+tb.length+' item'+(tb.length>1?'s':'')+'</span>';
-      h+='<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pc+';min-width:90px;text-align:right">'+(tripProfit>=0?'+':'')+fmt(tripProfit)+'</span>';
-      h+='</div>';
-      if(isOpen){
-        h+='<div style="padding:0 8px 10px 30px"><table style="min-width:0"><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Paid/ea</th><th class="r">Sell/ea</th><th class="r">Profit/ea</th><th class="r">Total</th></tr></thead><tbody>';
-        for(const b of tb){const d=itemInfo(b.item);const s=bestSell(b.item);const pe=s.val-b.costEach;const tp=pe*b.qty;const ppc=pe>0?'var(--green)':'var(--red)';
-          h+='<tr><td style="font-weight:600">'+d.name+(s.npc?' <span style="color:var(--cyan);font-size:0.6rem">NPC</span>':'')+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+b.qty+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+fmt(b.costEach)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(Math.round(s.val))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:'+ppc+'">'+(pe>=0?'+':'')+fmt(Math.round(pe))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+ppc+'">'+(tp>=0?'+':'')+fmt(Math.round(tp))+'</td></tr>';
-        }
-        h+='</tbody></table></div>';
+    const{start,end,label}=periodBounds(type,offset);
+
+    const allTrips=HISTORY.travel.filter(t=>t.ts>=start&&t.ts<=end).sort((a,b)=>b.ts-a.ts);
+    const buys=(HISTORY.buys||[]).filter(b=>b.ts>=start&&b.ts<=end);
+    const tb=tripBuysMap(allTrips,buys);
+
+    // Aggregates
+    let totalDur=0,totalSpent=0,totalProfit=0;const byCountry={},byItem={};
+    for(const t of allTrips)totalDur+=t.duration||0;
+    for(const t of allTrips){const c=tripCountry(t,tb[t.id]);byCountry[c]=(byCountry[c]||0)+1}
+    for(const b of buys){const s=bestSell(b.item,disc);totalProfit+=(s.val-b.costEach)*b.qty;totalSpent+=b.costEach*b.qty;const nm=(ITEM_DATA[b.item]||{}).name||('#'+b.item);byItem[nm]=(byItem[nm]||0)+b.qty}
+    const buyingTrips=allTrips.filter(t=>tb[t.id].length>0);
+
+    // ===== Header with nav =====
+    let h='<div class="tw" style="overflow:visible"><div class="tt">✈️ Travel Summary</div>';
+    h+='<div style="padding:12px 14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">';
+    for(const[tp,lbl]of[['day','Day'],['week','Week'],['month','Month'],['year','Year']])h+='<button onclick="TV.setPeriodType(\''+tp+'\')" class="btn" style="font-size:0.72rem;padding:5px 12px;background:'+(type===tp?'var(--accent)':'var(--bg2)')+';color:'+(type===tp?'#fff':'var(--text)')+';border:1px solid var(--border)">'+lbl+'</button>';
+    h+='</div>';
+    h+='<div style="padding:0 14px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px">';
+    h+='<button onclick="TV.periodNav(-1)" class="btn" style="font-size:0.8rem;padding:6px 14px;background:var(--bg3);color:var(--text);border:1px solid var(--border)">◄ Older</button>';
+    h+='<span style="font-weight:600;font-size:0.95rem;text-align:center;flex:1">'+label+'</span>';
+    h+='<button onclick="TV.periodNav(1)" class="btn" '+(offset>=0?'disabled':'')+' style="font-size:0.8rem;padding:6px 14px;background:var(--bg3);color:var(--text);border:1px solid var(--border);opacity:'+(offset>=0?'0.4':'1')+'">Newer ►</button>';
+    h+='</div>';
+    // Summary stat cards
+    h+='<div style="padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">';
+    h+='<div class="card"><div class="card-label">Trips</div><div class="card-value">'+allTrips.length+'</div></div>';
+    h+='<div class="card"><div class="card-label">Time in Air</div><div class="card-value" style="color:var(--cyan)">'+fmtDur(totalDur)+'</div></div>';
+    h+='<div class="card"><div class="card-label">Spent Abroad</div><div class="card-value">'+fmt(totalSpent)+'</div></div>';
+    h+='<div class="card"><div class="card-label">Est. Profit</div><div class="card-value" style="color:'+(totalProfit>=0?'var(--green)':'var(--red)')+'">'+(totalProfit>=0?'+':'')+fmt(totalProfit)+'</div></div>';
+    h+='</div></div>';
+
+    // ===== Destinations + Top Items side by side =====
+    const destSorted=Object.entries(byCountry).sort((a,b)=>b[1]-a[1]);
+    const itemSorted=Object.entries(byItem).sort((a,b)=>b[1]-a[1]);
+    const maxD=destSorted.length?destSorted[0][1]:1,maxI=itemSorted.length?itemSorted[0][1]:1;
+    h+='<div class="mg" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
+    // Destinations
+    h+='<div class="tw"><div class="tt">🗺️ Destinations</div><div style="padding:12px 14px">';
+    if(destSorted.length)for(const[c,n]of destSorted){const pct=n/maxD*100;h+='<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:0.78rem"><span style="width:90px">'+c+'</span><div style="flex:1;height:14px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:60px"><div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:4px"></div></div><span style="width:30px;text-align:right;font-family:JetBrains Mono,monospace;font-weight:600">'+n+'</span></div>'}
+    else h+='<div style="color:var(--text3);text-align:center;padding:12px">No trips</div>';
+    h+='</div></div>';
+    // Top items
+    h+='<div class="tw"><div class="tt">📦 Most Bought Items</div><div style="padding:12px 14px">';
+    if(itemSorted.length)for(const[nm,q]of itemSorted.slice(0,8)){const pct=q/maxI*100;h+='<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:0.78rem"><span style="width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+nm+'</span><div style="flex:1;height:14px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:50px"><div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:4px"></div></div><span style="width:44px;text-align:right;font-family:JetBrains Mono,monospace;font-weight:600">'+fN(q)+'</span></div>'}
+    else h+='<div style="color:var(--text3);text-align:center;padding:12px">No purchases</div>';
+    h+='</div></div>';
+    h+='</div>';
+
+    // ===== Profit breakdown table (sub-periods) =====
+    if(type!=='day'){
+      const subs=subPeriods(type,start,end);
+      h+='<div class="tw"><div class="tt">📈 Profit Breakdown</div><table><thead><tr><th>'+(type==='year'?'Month':type==='month'?'Day':'Day')+'</th><th class="r">Trips</th><th class="r">Air Time</th><th class="r">Spent</th><th class="r">Profit</th></tr></thead><tbody>';
+      for(const sp of subs){
+        const st=allTrips.filter(t=>t.ts>=sp.s&&t.ts<=sp.e);const sbuys=buys.filter(b=>b.ts>=sp.s&&b.ts<=sp.e);
+        let dur=0,sp2=0,pr=0;for(const t of st)dur+=t.duration||0;for(const b of sbuys){const s=bestSell(b.item,disc);pr+=(s.val-b.costEach)*b.qty;sp2+=b.costEach*b.qty}
+        if(st.length===0&&sbuys.length===0)continue;
+        h+='<tr><td style="font-weight:600">'+sp.label+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+st.length+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3);font-size:0.78rem">'+(dur?fmtDur(dur):'—')+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(sp2?fmt(sp2):'—')+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+(pr>0?'var(--green)':pr<0?'var(--red)':'var(--text3)')+'">'+(pr?((pr>=0?'+':'')+fmt(pr)):'—')+'</td></tr>';
       }
+      h+='</tbody></table></div>';
+    }
+
+    // ===== Flight log (buying trips, paginated) =====
+    const PER=10;const page=window._tripPage||0;const totalPages=Math.ceil(buyingTrips.length/PER);
+    const pageTrips=buyingTrips.slice(page*PER,page*PER+PER);
+    h+='<div class="tw"><div class="tt">🛫 Flight Log <span class="badge badge-g">'+buyingTrips.length+' buying trips</span></div>';
+    h+='<div style="padding:8px 14px;font-size:0.76rem;color:var(--text3)">Tap a trip to expand items & profit. Return legs hidden.</div><div style="padding:0 6px 8px">';
+    if(!buyingTrips.length)h+='<div style="padding:20px;text-align:center;color:var(--text3)">No buying trips this period</div>';
+    for(const t of pageTrips){
+      const tbb=tb[t.id]||[];const c=tripCountry(t,tbb);let tp=0;for(const b of tbb){const s=bestSell(b.item,disc);tp+=(s.val-b.costEach)*b.qty}
+      const dt=new Date(t.ts*1000);const isOpen=window._openTrips&&window._openTrips[t.id];const pcc=tp>0?'var(--green)':tp<0?'var(--red)':'var(--text3)';
+      h+='<div style="border-bottom:1px solid rgba(42,53,80,0.4)"><div onclick="TV.toggleTrip(\''+t.id+'\')" style="cursor:pointer;padding:10px 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+      h+='<span style="color:var(--text3);font-size:0.75rem">'+(isOpen?'▼':'▶')+'</span><span style="font-weight:600;min-width:80px">'+c+'</span>';
+      h+='<span style="color:var(--text3);font-size:0.75rem;flex:1">'+dt.toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' GMT · '+fmtDur(t.duration||0)+'</span>';
+      h+='<span style="font-size:0.76rem;color:var(--text2)">'+tbb.length+' item'+(tbb.length>1?'s':'')+'</span>';
+      h+='<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pcc+';min-width:80px;text-align:right">'+(tp>=0?'+':'')+fmt(tp)+'</span></div>';
+      if(isOpen){h+='<div style="padding:0 8px 10px 30px"><table style="min-width:0"><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Paid/ea</th><th class="r">Sell/ea</th><th class="r">Profit/ea</th><th class="r">Total</th></tr></thead><tbody>';
+        for(const b of tbb){const d=ITEM_DATA[b.item]||{name:'#'+b.item};const s=bestSell(b.item,disc);const pe=s.val-b.costEach;const tpp=pe*b.qty;const ppc=pe>0?'var(--green)':'var(--red)';
+          h+='<tr><td style="font-weight:600">'+(d.name||'#'+b.item)+(s.npc?' <span style="color:var(--cyan);font-size:0.6rem">NPC</span>':'')+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+b.qty+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+fmt(b.costEach)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(Math.round(s.val))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:'+ppc+'">'+(pe>=0?'+':'')+fmt(Math.round(pe))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+ppc+'">'+(tpp>=0?'+':'')+fmt(Math.round(tpp))+'</td></tr>';}
+        h+='</tbody></table></div>';}
       h+='</div>';
     }
     h+='</div>';
-    // Pagination controls
-    if(totalPages>1){
-      h+='<div style="padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:12px">';
-      h+='<button class="btn" onclick="TV.tripPage('+(page-1)+')" '+(page<=0?'disabled':'')+' style="font-size:0.75rem;padding:5px 12px;background:var(--bg3);color:var(--text);border:1px solid var(--border);opacity:'+(page<=0?'0.4':'1')+'">← Prev</button>';
-      h+='<span style="font-size:0.78rem;color:var(--text3)">Page '+(page+1)+' of '+totalPages+'</span>';
-      h+='<button class="btn" onclick="TV.tripPage('+(page+1)+')" '+(page>=totalPages-1?'disabled':'')+' style="font-size:0.75rem;padding:5px 12px;background:var(--bg3);color:var(--text);border:1px solid var(--border);opacity:'+(page>=totalPages-1?'0.4':'1')+'">Next →</button>';
-      h+='</div>';
-    }
-    // Summary footer
-    h+='<div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:0.85rem"><span style="color:var(--text2)">This '+win+': spent <b>'+fmt(totalSpent)+'</b></span><span style="font-weight:600;color:'+(totalProfit>=0?'var(--green)':'var(--red)')+'">Total profit '+(totalProfit>=0?'+':'')+fmt(totalProfit)+'</span></div>';
-    h+='</div>';el.innerHTML=h;
+    if(totalPages>1){h+='<div style="padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:12px"><button class="btn" onclick="TV.tripPage('+(page-1)+')" '+(page<=0?'disabled':'')+' style="font-size:0.75rem;padding:5px 12px;background:var(--bg3);color:var(--text);border:1px solid var(--border);opacity:'+(page<=0?'0.4':'1')+'">← Prev</button><span style="font-size:0.78rem;color:var(--text3)">Page '+(page+1)+' of '+totalPages+'</span><button class="btn" onclick="TV.tripPage('+(page+1)+')" '+(page>=totalPages-1?'disabled':'')+' style="font-size:0.75rem;padding:5px 12px;background:var(--bg3);color:var(--text);border:1px solid var(--border);opacity:'+(page>=totalPages-1?'0.4':'1')+'">Next →</button></div>';}
+    h+='</div>';
+    el.innerHTML=h;
   }
-  function toggleTrip(id){if(!window._openTrips)window._openTrips={};window._openTrips[id]=!window._openTrips[id];renderTripLog()}
-  function tripPage(p){window._tripPage=Math.max(0,p);renderTripLog()}
+  function setPeriodType(t){window._periodType=t;window._periodOffset=0;window._tripPage=0;try{localStorage.setItem('tv_ptype',t)}catch(e){}renderPeriod()}
+  function periodNav(dir){window._periodOffset=Math.min(0,(window._periodOffset||0)+dir);window._tripPage=0;renderPeriod()}
+  function toggleTrip(id){if(!window._openTrips)window._openTrips={};window._openTrips[id]=!window._openTrips[id];renderPeriod()}
+  function tripPage(p){window._tripPage=Math.max(0,p);renderPeriod()}
 
   function renderStockHist(){
     const el=$('stStockHist');if(!el)return;
@@ -558,7 +602,7 @@ const TV=(function(){
   }
   function toggleStockHist(){window._stockHistOpen=!window._stockHistOpen;renderStockHist()}
 
-  return{refresh,renderItems,loadHistory,syncNow,resetHistory,renderDestChart,renderStockHist,renderTripLog,setWindow,loadPricesAndRender,toggleStockHist,toggleTrip,tripPage};
+  return{refresh,renderItems,loadHistory,syncNow,resetHistory,renderStockHist,renderPeriod,setPeriodType,periodNav,loadPricesAndRender,toggleStockHist,toggleTrip,tripPage};
 })();
 </script>
 
