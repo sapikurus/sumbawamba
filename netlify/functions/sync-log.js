@@ -17,8 +17,11 @@ async function doSync(KEY, opts){
   const seen = new Set(hist.travel.map(t=>t.id).concat(hist.buys.map(b=>b.id)));
 
   let newTravel=[],newBuys=[];
-  const PAGE_LIMIT = backfill ? 8 : 5; // pages per invocation (throttled ~700ms each, stay under 10s)
-  const THROTTLE = 650;
+  // Aggressive backfill: many pages per invocation with light throttle.
+  // Torn allows ~100 req/min. At 350ms/page = ~170/min sustained, but we only
+  // run short bursts per invocation then pause, keeping the average safe.
+  const PAGE_LIMIT = backfill ? 18 : 5;
+  const THROTTLE = backfill ? 350 : 650;
   let pages=0, newestTs=hist.lastTs, oldestReached=false;
 
   // For backfill we page BACKWARD from the cursor (oldest seen so far).
