@@ -249,12 +249,14 @@ const TV=(function(){
     const k=$('apiKey').value.trim();if(!k){toast('⚠️ Enter your Torn API key');return}
     $('tvStatusText').textContent='Loading travel data...';$('tvStatusDot').className='status-dot loading';
     try{
-      const[travelData,statsData]=await Promise.all([
+      const[travelData,statsData,hofData]=await Promise.all([
         fetch('https://api.torn.com/v2/user/travel?key='+encodeURIComponent(k)).then(r=>r.json()),
-        fetch('https://api.torn.com/v2/user/personalstats?cat=travel&key='+encodeURIComponent(k)).then(r=>r.json())
+        fetch('https://api.torn.com/v2/user/personalstats?cat=travel&key='+encodeURIComponent(k)).then(r=>r.json()),
+        fetch('https://api.torn.com/v2/user/hof?key='+encodeURIComponent(k)).then(r=>r.json()).catch(()=>null)
       ]);
       renderCurrentTravel(travelData.travel);
-      renderAwards(statsData.personalstats&&statsData.personalstats.travel);
+      const hofRank=hofData&&hofData.hof&&hofData.hof.travel_time?hofData.hof.travel_time.rank:null;
+      renderAwards(statsData.personalstats&&statsData.personalstats.travel,hofRank);
       // Load history (which builds items from your buys and fetches their prices)
       $('tvStatusText').textContent='Loading your travel history...';
       await loadHistory();
@@ -282,30 +284,36 @@ const TV=(function(){
 
   function progBar(pct,color){return'<div style="flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:80px"><div style="width:'+Math.min(pct,100)+'%;height:100%;background:'+color+';border-radius:4px"></div></div>'}
 
-  function renderAwards(tv){
+  function renderAwards(tv,hofRank){
     if(!tv){$('tvAwards').innerHTML='';return}
+    window._lastTv=tv;
+    if(hofRank!==undefined&&hofRank!==null)window._travelHofRank=hofRank;
+    const rank=window._travelHofRank;
     const days=tv.time_spent/86400,trips=tv.total,imports=tv.items_bought;
-    let h='<div class="tw"><div class="tt">🏆 Travel Awards Progress</div><div style="padding:14px">';
-    // Time in air — headline (Globetrotter)
+    const open=window._awardsOpen;
+    const caret=open?'▼':'▶';
+    const rankLabel=rank?' <span style="color:var(--amber);font-weight:600">— HoF Rank #'+fN(rank)+'</span>':'';
+    let h='<div class="tw"><div class="tt" style="cursor:pointer;user-select:none" onclick="TV.toggleAwards()">'+caret+' 🏆 Travel Awards'+rankLabel+'</div>';
+    if(!open){h+='</div>';$('tvAwards').innerHTML=h;return}
+    h+='<div style="padding:14px">';
+    if(rank)h+='<div style="margin-bottom:14px;padding:10px 12px;background:var(--bg3);border-radius:8px;font-size:0.85rem">🌍 Global Travel Time Ranking: <b style="color:var(--amber)">#'+fN(rank)+'</b> in Torn</div>';
     const gt=AWARDS_TIME.find(a=>days<a.d)||AWARDS_TIME[AWARDS_TIME.length-1];
     h+='<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-weight:600">⏱️ Time in Air</span><span style="font-family:JetBrains Mono,monospace;color:var(--cyan)">'+days.toFixed(1)+' days</span></div>';
     for(const a of AWARDS_TIME){const pct=Math.min(days/a.d*100,100),done=days>=a.d;h+='<div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:0.78rem"><span style="width:110px;color:'+(done?'var(--green)':'var(--text2)')+'">'+(done?'✓ ':'')+a.name+' ('+a.d+'d)</span>'+progBar(pct,done?'var(--green)':'var(--cyan)')+'<span style="width:44px;text-align:right;font-family:JetBrains Mono,monospace;color:'+(done?'var(--green)':'var(--text3)')+'">'+pct.toFixed(0)+'%</span></div>'}
     if(days<365)h+='<div style="font-size:0.75rem;color:var(--text3);margin-top:6px">'+(365-days).toFixed(1)+' more days of flight time to <b>Globetrotter</b></div>';
     h+='</div>';
-    // Trips
     h+='<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-weight:600">🛫 Total Trips</span><span style="font-family:JetBrains Mono,monospace;color:var(--cyan)">'+fN(trips)+'</span></div>';
     for(const a of AWARDS_TRIPS){const pct=Math.min(trips/a.n*100,100),done=trips>=a.n;h+='<div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:0.78rem"><span style="width:110px;color:'+(done?'var(--green)':'var(--text2)')+'">'+(done?'✓ ':'')+a.name+' ('+fN(a.n)+')</span>'+progBar(pct,done?'var(--green)':'var(--amber)')+'<span style="width:44px;text-align:right;font-family:JetBrains Mono,monospace;color:'+(done?'var(--green)':'var(--text3)')+'">'+pct.toFixed(0)+'%</span></div>'}
     h+='</div>';
-    // Imports
     h+='<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-weight:600">📦 Items Imported</span><span style="font-family:JetBrains Mono,monospace;color:var(--cyan)">'+fN(imports)+'</span></div>';
     for(const a of AWARDS_IMPORT){const pct=Math.min(imports/a.n*100,100),done=imports>=a.n;h+='<div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:0.78rem"><span style="width:110px;color:'+(done?'var(--green)':'var(--text2)')+'">'+(done?'✓ ':'')+a.name+' ('+fN(a.n)+')</span>'+progBar(pct,done?'var(--green)':'var(--purple)')+'<span style="width:44px;text-align:right;font-family:JetBrains Mono,monospace;color:'+(done?'var(--green)':'var(--text3)')+'">'+pct.toFixed(0)+'%</span></div>'}
     h+='</div>';
-    // Per-country 50-trip merits
     h+='<div><div style="font-weight:600;margin-bottom:8px">🌐 Per-Country (50 trips each)</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px">';
     for(const[key,label]of COUNTRIES){const c=tv[key]||0,pct=Math.min(c/50*100,100),done=c>=50;h+='<div style="display:flex;align-items:center;gap:6px;font-size:0.72rem"><span style="width:80px;color:'+(done?'var(--green)':'var(--text2)')+'">'+(done?'✓ ':'')+label+'</span>'+progBar(pct,done?'var(--green)':'var(--cyan)')+'<span style="width:32px;text-align:right;font-family:JetBrains Mono,monospace;color:var(--text3)">'+c+'</span></div>'}
     h+='</div></div>';
     h+='</div></div>';$('tvAwards').innerHTML=h;
   }
+  function toggleAwards(){window._awardsOpen=!window._awardsOpen;window._lastTv&&renderAwards(window._lastTv)}
 
   // Resolve item names from Torn items API (once)
   async function loadItemData(){
@@ -518,10 +526,14 @@ const TV=(function(){
     const buys=(HISTORY.buys||[]).filter(b=>b.ts>=start&&b.ts<=end);
     const tb=tripBuysMap(allTrips,buys);
 
-    // Aggregates
+    // Aggregates. Trips are round-trips (outbound + return), so trip COUNT = total legs / 2.
+    // Air time counts ALL legs (both directions are real flight time for Globetrotter).
     let totalDur=0,totalSpent=0,totalProfit=0;const byCountry={},byItem={};
     for(const t of allTrips)totalDur+=t.duration||0;
     for(const t of allTrips){const c=tripCountry(t,tb[t.id]);byCountry[c]=(byCountry[c]||0)+1}
+    // Halve destination counts (round trips) — round so odd counts still show sensibly
+    for(const c in byCountry)byCountry[c]=Math.round(byCountry[c]/2);
+    const roundTrips=Math.round(allTrips.length/2);
     for(const b of buys){const s=bestSell(b.item,disc);totalProfit+=(s.val-b.costEach)*b.qty;totalSpent+=b.costEach*b.qty;const nm=(ITEM_DATA[b.item]||{}).name||('#'+b.item);byItem[nm]=(byItem[nm]||0)+b.qty}
     const buyingTrips=allTrips.filter(t=>tb[t.id].length>0);
 
@@ -537,7 +549,7 @@ const TV=(function(){
     h+='</div>';
     // Summary stat cards
     h+='<div style="padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">';
-    h+='<div class="card"><div class="card-label">Trips</div><div class="card-value">'+allTrips.length+'</div></div>';
+    h+='<div class="card"><div class="card-label">Trips</div><div class="card-value">'+roundTrips+'</div></div>';
     h+='<div class="card"><div class="card-label">Time in Air</div><div class="card-value" style="color:var(--cyan)">'+fmtDur(totalDur)+'</div></div>';
     h+='<div class="card"><div class="card-label">Spent Abroad</div><div class="card-value">'+fmt(totalSpent)+'</div></div>';
     h+='<div class="card"><div class="card-label">Est. Profit</div><div class="card-value" style="color:'+(totalProfit>=0?'var(--green)':'var(--red)')+'">'+(totalProfit>=0?'+':'')+fmt(totalProfit)+'</div></div>';
@@ -625,7 +637,7 @@ const TV=(function(){
   }
   function toggleStockHist(){window._stockHistOpen=!window._stockHistOpen;renderStockHist()}
 
-  return{refresh,renderItems,loadHistory,syncNow,resetHistory,resumeBackfill,renderStockHist,renderPeriod,setPeriodType,periodNav,loadPricesAndRender,toggleStockHist,toggleTrip,tripPage};
+  return{refresh,renderItems,loadHistory,syncNow,resetHistory,resumeBackfill,renderStockHist,renderPeriod,setPeriodType,periodNav,loadPricesAndRender,toggleStockHist,toggleTrip,tripPage,toggleAwards};
 })();
 </script>
 
