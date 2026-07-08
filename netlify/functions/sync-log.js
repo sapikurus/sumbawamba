@@ -107,18 +107,17 @@ async function doSync(KEY, opts){
         ]);
         const ps=(psR&&psR.personalstats)||{};
         const bs=(bsR&&bsR.battlestats)||bsR||{};
-        // Extract networth (nested under 'networth' in v2) and work stats
         const nw=ps.networth||{};
+        const js=(ps.jobs&&ps.jobs.stats)||{};
+        const bv=k=>(bs[k]&&typeof bs[k]==='object'?bs[k].value:bs[k])||0;
         const snap={
           day:dayKey, ts:Math.floor(Date.now()/1000),
-          networth: nw.total!=null?nw.total:(ps.networth_total||0),
-          nw_bank:nw.bank||0, nw_stocks:nw.stockmarket||nw.stock_market||0, nw_inventory:nw.inventory||0,
-          nw_points:nw.points||0, nw_cayman:nw.cayman||0, nw_wallet:nw.wallet||0,
-          str:bs.strength||0, def:bs.defense||0, spd:bs.speed||0, dex:bs.dexterity||0,
-          bat_total:(bs.strength||0)+(bs.defense||0)+(bs.speed||0)+(bs.dexterity||0),
-          work_manual:ps.manuallabor||(ps.jobstats&&ps.jobstats.manuallabor)||0,
-          work_int:ps.intelligence||(ps.jobstats&&ps.jobstats.intelligence)||0,
-          work_end:ps.endurance||(ps.jobstats&&ps.jobstats.endurance)||0
+          networth: nw.total!=null?nw.total:0,
+          nw_bank:nw.bank||0, nw_stocks:nw.stock_market||0, nw_inventory:nw.inventory||0,
+          nw_points:nw.points||0, nw_cayman:nw.overseas_bank||0, nw_wallet:nw.wallet||0,
+          str:bv('strength'), def:bv('defense'), spd:bv('speed'), dex:bv('dexterity'),
+          bat_total:bv('strength')+bv('defense')+bv('speed')+bv('dexterity'),
+          work_manual:js.manual||0, work_int:js.intelligence||0, work_end:js.endurance||0
         };
         hist.stats.push(snap);
         if(hist.stats.length>800)hist.stats=hist.stats.slice(-800); // ~2yr of daily

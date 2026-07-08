@@ -1620,14 +1620,14 @@ const DB=(function(){
         fetch('https://api.torn.com/v2/user/personalstats?cat=all&key='+encodeURIComponent(k)).then(r=>r.json()).catch(()=>null)
       ]);
       const b=(bs&&bs.battlestats)||bs||{};const p=(ps&&ps.personalstats)||{};const nw=p.networth||{};
+      const js=(p.jobs&&p.jobs.stats)||{};
+      const bv=k=>(b[k]&&typeof b[k]==='object'?b[k].value:b[k])||0;
       CURRENT={
-        networth:nw.total!=null?nw.total:0,nw_bank:nw.bank||0,nw_stocks:nw.stockmarket||nw.stock_market||0,
-        nw_inventory:nw.inventory||0,nw_points:nw.points||0,nw_wallet:nw.wallet||0,nw_cayman:nw.cayman||0,
-        str:b.strength||0,def:b.defense||0,spd:b.speed||0,dex:b.dexterity||0,
-        bat_total:(b.strength||0)+(b.defense||0)+(b.speed||0)+(b.dexterity||0),
-        work_manual:p.manuallabor||(p.jobstats&&p.jobstats.manuallabor)||0,
-        work_int:p.intelligence||(p.jobstats&&p.jobstats.intelligence)||0,
-        work_end:p.endurance||(p.jobstats&&p.jobstats.endurance)||0
+        networth:nw.total!=null?nw.total:0,nw_bank:nw.bank||0,nw_stocks:nw.stock_market||0,
+        nw_inventory:nw.inventory||0,nw_points:nw.points||0,nw_wallet:nw.wallet||0,nw_cayman:nw.overseas_bank||0,
+        str:bv('strength'),def:bv('defense'),spd:bv('speed'),dex:bv('dexterity'),
+        bat_total:bv('strength')+bv('defense')+bv('speed')+bv('dexterity'),
+        work_manual:js.manual||0,work_int:js.intelligence||0,work_end:js.endurance||0
       };
       try{localStorage.setItem('db_current',JSON.stringify(CURRENT))}catch(e){}
       // Historical snapshots from Blob
