@@ -91,6 +91,41 @@ async function doSync(KEY, opts){
     }catch(e){}
   }
 
+  // --- 3. Daily stats snapshot (networth, battle, work) for growth charts ---
+  // Only snapshot once per calendar day (GMT) to avoid bloating the series.
+  if(!backfill){
+    try{
+      if(!hist.stats) hist.stats=[];
+      const today=new Date();const dayKey=today.getUTCFullYear()+'-'+String(today.getUTCMonth()+1).padStart(2,'0')+'-'+String(today.getUTCDate()).padStart(2,'0');
+      const already=hist.stats.length&&hist.stats[hist.stats.length-1].day===dayKey;
+      if(!already){
+        await new Promise(r=>setTimeout(r,THROTTLE));
+        // networth + work stats from personalstats; battle stats from battlestats
+        const [psR,bsR]=await Promise.all([
+          fetch('https://api.torn.com/v2/user/personalstats?cat=all&key='+encodeURIComponent(KEY),{headers:{'User-Agent':'Sumbawamba/1.0'}}).then(r=>r.json()).catch(()=>null),
+          fetch('https://api.torn.com/v2/user/battlestats?key='+encodeURIComponent(KEY),{headers:{'User-Agent':'Sumbawamba/1.0'}}).then(r=>r.json()).catch(()=>null)
+        ]);
+        const ps=(psR&&psR.personalstats)||{};
+        const bs=(bsR&&bsR.battlestats)||bsR||{};
+        // Extract networth (nested under 'networth' in v2) and work stats
+        const nw=ps.networth||{};
+        const snap={
+          day:dayKey, ts:Math.floor(Date.now()/1000),
+          networth: nw.total!=null?nw.total:(ps.networth_total||0),
+          nw_bank:nw.bank||0, nw_stocks:nw.stockmarket||nw.stock_market||0, nw_inventory:nw.inventory||0,
+          nw_points:nw.points||0, nw_cayman:nw.cayman||0, nw_wallet:nw.wallet||0,
+          str:bs.strength||0, def:bs.defense||0, spd:bs.speed||0, dex:bs.dexterity||0,
+          bat_total:(bs.strength||0)+(bs.defense||0)+(bs.speed||0)+(bs.dexterity||0),
+          work_manual:ps.manuallabor||(ps.jobstats&&ps.jobstats.manuallabor)||0,
+          work_int:ps.intelligence||(ps.jobstats&&ps.jobstats.intelligence)||0,
+          work_end:ps.endurance||(ps.jobstats&&ps.jobstats.endurance)||0
+        };
+        hist.stats.push(snap);
+        if(hist.stats.length>800)hist.stats=hist.stats.slice(-800); // ~2yr of daily
+      }
+    }catch(e){}
+  }
+
   hist.updated = Math.floor(Date.now()/1000);
   await store.setJSON('history',hist);
   return {
@@ -102,8 +137,11 @@ async function doSync(KEY, opts){
 }
 
 export default async (req) => {
-  const KEY = process.env.TORN_FULL_KEY;
-  if(!KEY) return new Response(JSON.stringify({error:'No TORN_FULL_KEY env var set'}),{status:500,headers:{'Content-Type':'application/json'}});
+  // Key from URL param (in-app key, not stored) OR env var (if configured for scheduled runs)
+  let paramKey=null;
+  try{ paramKey=new URL(req.url).searchParams.get('key') }catch(e){}
+  const KEY = paramKey || process.env.TORN_FULL_KEY;
+  if(!KEY) return new Response(JSON.stringify({error:'No API key provided'}),{status:500,headers:{'Content-Type':'application/json'}});
 
   let scheduled=false;
   try{ if(req.body){ const b=await req.clone().json().catch(()=>null); if(b&&b.next_run) scheduled=true; } }catch(e){}

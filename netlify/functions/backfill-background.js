@@ -7,13 +7,15 @@ import { getStore } from '@netlify/blobs';
 const AREA_MAP={1:'Torn',2:'Mexico',3:'Cayman Islands',4:'Canada',5:'Hawaii',6:'China',7:'Argentina',8:'Switzerland',9:'Japan',10:'UAE',11:'United Kingdom',12:'South Africa'};
 
 export default async (req) => {
-  const KEY = process.env.TORN_FULL_KEY;
+  let paramKey=null,secretParam=null,resetParam=false;
+  try{ const u=new URL(req.url); paramKey=u.searchParams.get('key'); secretParam=u.searchParams.get('secret'); resetParam=u.searchParams.get('reset')==='1'; }catch(e){}
+  const KEY = paramKey || process.env.TORN_FULL_KEY;
   const SECRET = process.env.SYNC_SECRET;
-  if(!KEY) return new Response('No TORN_FULL_KEY',{status:500});
-
-  let params={};
-  try{ const u=new URL(req.url); params.secret=u.searchParams.get('secret'); params.reset=u.searchParams.get('reset')==='1'; }catch(e){}
-  if(SECRET && params.secret!==SECRET) return new Response('bad secret',{status:403});
+  if(!KEY) return new Response('No API key provided',{status:500});
+  // If a server secret is configured, require it (protects env-key mode). In pure
+  // in-app mode (no env secret), the key itself is the credential.
+  if(SECRET && !paramKey && secretParam!==SECRET) return new Response('bad secret',{status:403});
+  let params={secret:secretParam,reset:resetParam};
 
   const store = getStore('sumbawamba');
   let hist;
