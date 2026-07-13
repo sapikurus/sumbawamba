@@ -1642,7 +1642,11 @@ const DB=(function(){
     try{const c=JSON.parse(localStorage.getItem(cacheKey)||'null');if(c&&c.ts>Date.now()-86400000){SERIES=c.series;return}}catch(e){}
     $('dbStatusText').textContent='Building your historical charts...';
     // Order matters: networth first (most wanted), then the rest — render after each stat
-    const statList=[['networth','networth'],['bat_total','totalstats'],['work_manual','manuallabor'],['work_int','intelligence'],['work_end','endurance']];
+    const statList=[
+      ['networth','networth'],
+      ['str','strength'],['def','defense'],['spd','speed'],['dex','dexterity'],
+      ['work_manual','manuallabor'],['work_int','intelligence'],['work_end','endurance']
+    ];
     const dates=datePoints(period);
     const series={};for(const[f]of statList)series[f]=[];
     let done=0;const totalCalls=statList.length*dates.length;
@@ -1656,6 +1660,10 @@ const DB=(function(){
       // Render progressively as each stat's series completes
       SERIES=series;render();
       $('dbStatusText').textContent='Building charts... '+Math.round(done/totalCalls*100)+'%';
+    }
+    // Derive bat_total series from component stats (align by index)
+    if(series.str&&series.str.length){
+      series.bat_total=series.str.map((p,i)=>({x:p.x,y:(p.y||0)+((series.def[i]&&series.def[i].y)||0)+((series.spd[i]&&series.spd[i].y)||0)+((series.dex[i]&&series.dex[i].y)||0)}));
     }
     SERIES=series;
     try{localStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),series}))}catch(e){}
@@ -1709,28 +1717,58 @@ const DB=(function(){
     return '<div class="card"><div class="card-label">'+label+'</div><div class="card-value" style="color:'+(color||'var(--text)')+'">'+disp+'</div>'+dhtml+'</div>';
   }
 
-  function chart(field,color,title,isMoney){
-    const pts=(SERIES[field]||[]).filter(p=>p.y>0);
-    // append current value as latest point
-    if(CURRENT&&CURRENT[field]>0)pts.push({x:Math.floor(Date.now()/1000),y:CURRENT[field]});
-    if(pts.length<2)return '<div class="tw"><div class="tt">'+title+'</div><div style="padding:20px;text-align:center;color:var(--text3);font-size:0.8rem">Loading historical data…</div></div>';
-    const minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y));
-    const minX=pts[0].x,maxX=pts[pts.length-1].x;
-    const W=600,H=140,pad=6;
-    const sx=x=>pad+(x-minX)/(maxX-minX||1)*(W-2*pad);
-    const sy=y=>H-pad-(y-minY)/(maxY-minY||1)*(H-2*pad);
-    const path='M'+pts.map(p=>sx(p.x).toFixed(1)+','+sy(p.y).toFixed(1)).join(' L');
-    const first=pts[0].y,last=pts[pts.length-1].y,growth=last-first,gpct=first?growth/first*100:0;
-    const gtxt=(isMoney?'$':'')+fN(Math.round(growth));
-    let h='<div class="tw"><div class="tt">'+title+' <span style="font-size:0.72rem;color:'+(growth>=0?'var(--green)':'var(--red)')+'">'+(growth>=0?'+':'')+gtxt+' ('+(gpct>=0?'+':'')+gpct.toFixed(0)+'%)</span></div>';
-    h+='<div style="padding:12px 14px"><svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto" preserveAspectRatio="none">';
-    // gridlines
-    for(let g=0;g<=3;g++){const yy=pad+g/3*(H-2*pad);h+='<line x1="'+pad+'" y1="'+yy.toFixed(0)+'" x2="'+(W-pad)+'" y2="'+yy.toFixed(0)+'" stroke="var(--border)" stroke-width="0.5" opacity="0.4"/>'}
-    h+='<path d="'+path+' L'+sx(maxX).toFixed(1)+','+(H-pad)+' L'+sx(minX).toFixed(1)+','+(H-pad)+' Z" fill="'+color+'" opacity="0.1"/>';
-    h+='<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>';
-    h+='</svg><div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text3);margin-top:4px"><span>'+new Date(minX*1000).toLocaleDateString()+'</span><span>now</span></div></div></div>';
+  function abbr(n){n=Math.round(n);const a=Math.abs(n);if(a>=1e9)return (n/1e9).toFixed(1)+'B';if(a>=1e6)return (n/1e6).toFixed(1)+'M';if(a>=1e3)return (n/1e3).toFixed(0)+'K';return String(n)}
+
+  // Multi-series chart: axis labels, gridlines, hover tooltip, multiple overlaid lines
+  function multiChart(title,seriesDefs,isMoney){
+    const lines=seriesDefs.map(sd=>{
+      const pts=(SERIES[sd.field]||[]).filter(p=>p.y>0).slice();
+      if(CURRENT&&CURRENT[sd.field]>0)pts.push({x:Math.floor(Date.now()/1000),y:CURRENT[sd.field]});
+      return{...sd,pts};
+    }).filter(l=>l.pts.length>=2);
+    if(!lines.length)return '<div class="tw"><div class="tt">'+title+'</div><div style="padding:20px;text-align:center;color:var(--text3);font-size:0.8rem">Loading historical data…</div></div>';
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for(const l of lines)for(const p of l.pts){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)}
+    if(minY>0)minY=0;
+    const W=680,H=210,padL=58,padR=12,padT=12,padB=26;
+    const sx=x=>padL+(x-minX)/(maxX-minX||1)*(W-padL-padR);
+    const sy=y=>H-padB-(y-minY)/(maxY-minY||1)*(H-padT-padB);
+    const fmtY=v=>isMoney?('$'+abbr(v)):abbr(v);
+    let svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;touch-action:none" preserveAspectRatio="xMidYMid meet" onmousemove="DB.hover(event,this)" onmouseleave="DB.hoverOff(this)" ontouchmove="DB.hover(event,this)" ontouchend="DB.hoverOff(this)">';
+    for(let g=0;g<=4;g++){const v=minY+(maxY-minY)*g/4;const yy=sy(v);
+      svg+='<line x1="'+padL+'" y1="'+yy.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+yy.toFixed(1)+'" stroke="var(--border)" stroke-width="0.5" opacity="0.5"/>';
+      svg+='<text x="'+(padL-6)+'" y="'+(yy+3).toFixed(1)+'" text-anchor="end" font-size="9" fill="var(--text3)">'+fmtY(v)+'</text>';}
+    for(const frac of [0,0.5,1]){const x=minX+(maxX-minX)*frac;const xx=sx(x);
+      svg+='<text x="'+xx.toFixed(1)+'" y="'+(H-8)+'" text-anchor="'+(frac===0?'start':frac===1?'end':'middle')+'" font-size="9" fill="var(--text3)">'+new Date(x*1000).toLocaleDateString('en-GB',{month:'short',year:'2-digit'})+'</text>';}
+    const hoverData=[];
+    for(const l of lines){
+      const path='M'+l.pts.map(p=>sx(p.x).toFixed(1)+','+sy(p.y).toFixed(1)).join(' L');
+      svg+='<path d="'+path+'" fill="none" stroke="'+l.color+'" stroke-width="2"/>';
+      hoverData.push({label:l.label,color:l.color,pts:l.pts.map(p=>({x:p.x,sx:sx(p.x),y:p.y}))});}
+    svg+='<line class="hoverline" x1="0" y1="'+padT+'" x2="0" y2="'+(H-padB)+'" stroke="var(--text2)" stroke-width="0.5" opacity="0" stroke-dasharray="3,3"/>';
+    svg+='</svg>';
+    let legend='<div style="display:flex;gap:14px;flex-wrap:wrap;padding:2px 14px 0">';
+    for(const l of lines){const last=l.pts[l.pts.length-1].y;legend+='<span style="font-size:0.72rem;color:var(--text2);display:flex;align-items:center;gap:4px"><span style="width:10px;height:2px;background:'+l.color+';display:inline-block"></span>'+l.label+' <b style="color:'+l.color+'">'+(isMoney?'$'+abbr(last):abbr(last))+'</b></span>'}
+    legend+='</div>';
+    let h='<div class="tw"><div class="tt">'+title+'</div>';
+    h+='<div style="padding:8px 14px 4px" data-chart=\''+JSON.stringify({hoverData,W,isMoney}).replace(/'/g,'&#39;')+'\'>'+svg+'<div class="charttip" style="font-size:0.72rem;color:var(--text2);min-height:18px;margin-top:2px"></div></div>';
+    h+=legend+'</div>';
     return h;
   }
+  function hover(e,svg){
+    const wrap=svg.parentElement;const cfg=JSON.parse(wrap.getAttribute('data-chart').replace(/&#39;/g,"'"));
+    const rect=svg.getBoundingClientRect();
+    const cx=(e.touches?e.touches[0].clientX:e.clientX)-rect.left;
+    const svgX=cx/rect.width*cfg.W;
+    const first=cfg.hoverData[0];if(!first||!first.pts.length)return;
+    let best=0,bd=Infinity;
+    first.pts.forEach((p,i)=>{const d=Math.abs(p.sx-svgX);if(d<bd){bd=d;best=i}});
+    const hl=svg.querySelector('.hoverline');if(hl){hl.setAttribute('x1',first.pts[best].sx);hl.setAttribute('x2',first.pts[best].sx);hl.setAttribute('opacity','0.6')}
+    const date=new Date(first.pts[best].x*1000).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    let tip='<b>'+date+'</b> — '+cfg.hoverData.map(hd=>{const pt=hd.pts[best];return pt?'<span style="color:'+hd.color+'">'+hd.label+': '+(cfg.isMoney?'$'+fN(pt.y):fN(pt.y))+'</span>':''}).filter(Boolean).join(' · ');
+    const tipEl=wrap.querySelector('.charttip');if(tipEl)tipEl.innerHTML=tip;
+  }
+  function hoverOff(svg){const hl=svg.querySelector('.hoverline');if(hl)hl.setAttribute('opacity','0');const tip=svg.parentElement.querySelector('.charttip');if(tip)tip.innerHTML=''}
 
   function render(){
     if(!CURRENT){$('dbContent').innerHTML='<div class="empty"><div class="empty-icon">📊</div><h3>Tap Refresh to load your stats</h3></div>';return}
@@ -1746,7 +1784,7 @@ const DB=(function(){
     h+=statCard('Inventory',c.nw_inventory,'nw_inventory','var(--amber)',true);
     h+=statCard('Points',c.nw_points,'nw_points','var(--blue)',true);
     h+='</div></div>';
-    h+=chart('networth','var(--green)','📈 Net Worth Growth',true);
+    h+=multiChart('📈 Net Worth Growth',[{field:'networth',color:'var(--green)',label:'Net Worth'}],true);
     const batD=delta('bat_total');let batDelta='';if(batD!=null&&batD!==0){const up=batD>0;batDelta='<div style="font-size:0.72rem;margin-top:2px;color:'+(up?'var(--green)':'var(--red)')+'">'+(up?'▲ +':'▼ ')+fN(Math.round(Math.abs(batD)))+' / '+(period==='monthly'?'mo':'wk')+'</div>'}
     h+='<div class="tw"><div class="tt">⚔️ Battle Stats</div><div style="padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:12px">';
     h+='<div class="card"><div class="card-label">Total</div><div class="card-value" style="color:var(--red)">'+fN(c.bat_total)+'</div>'+batDelta+'</div>';
@@ -1755,17 +1793,26 @@ const DB=(function(){
     h+='<div class="card"><div class="card-label">Speed</div><div class="card-value">'+fN(c.spd)+'</div></div>';
     h+='<div class="card"><div class="card-label">Dexterity</div><div class="card-value">'+fN(c.dex)+'</div></div>';
     h+='</div></div>';
-    h+=chart('bat_total','var(--red)','📈 Battle Stat Growth',false);
+    h+=multiChart('📈 Battle Stat Growth',[
+      {field:'str',color:'#f56565',label:'Strength'},
+      {field:'def',color:'#3b82f6',label:'Defense'},
+      {field:'spd',color:'#34d058',label:'Speed'},
+      {field:'dex',color:'#fbaf24',label:'Dexterity'}
+    ],false);
     h+='<div class="tw"><div class="tt">💼 Work Stats</div><div style="padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:12px">';
     h+='<div class="card"><div class="card-label">Manual Labor</div><div class="card-value" style="color:var(--amber)">'+fN(c.work_manual)+'</div></div>';
     h+='<div class="card"><div class="card-label">Intelligence</div><div class="card-value" style="color:var(--cyan)">'+fN(c.work_int)+'</div></div>';
     h+='<div class="card"><div class="card-label">Endurance</div><div class="card-value" style="color:var(--green)">'+fN(c.work_end)+'</div></div>';
     h+='</div></div>';
-    h+=chart('work_manual','var(--amber)','📈 Manual Labor Growth',false);
+    h+=multiChart('📈 Work Stat Growth',[
+      {field:'work_manual',color:'var(--amber)',label:'Manual'},
+      {field:'work_int',color:'var(--cyan)',label:'Intelligence'},
+      {field:'work_end',color:'var(--green)',label:'Endurance'}
+    ],false);
     $('dbContent').innerHTML=h;
   }
 
-  return{refresh,loadCached,render,setPeriod};
+  return{refresh,loadCached,render,setPeriod,hover,hoverOff};
 })();
 
 // ====== MUSEUM (set tracker + points valuation) ======
@@ -1801,7 +1848,7 @@ const MU=(function(){
     $('muStatusDot').className='status-dot loading';$('muStatusText').textContent='Loading inventory & point value...';
     try{
       // Pull relevant inventory categories (plushie, flower, collectible, special)
-      INV={};const cats=['plushie','flower','collectible','special','other'];
+      INV={};const cats=['plushie','flower','artifact','collectible','special','material','other'];
       for(const cat of cats){
         try{const r=await fetch('https://api.torn.com/v2/user/inventory?cat='+cat+'&key='+encodeURIComponent(k));const j=await r.json();
           const items=(j.inventory&&j.inventory.items)||[];
