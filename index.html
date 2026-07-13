@@ -131,6 +131,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
     <button class="page-nav-btn" onclick="switchPage('travel',this)"><span class="nav-icon">✈️</span> Travel</button>
     <button class="page-nav-btn" onclick="switchPage('bounty',this)"><span class="nav-icon">🎯</span> Bounty Scout</button>
+    <button class="page-nav-btn" onclick="switchPage('museum',this)"><span class="nav-icon">🏛️</span> Museum</button>
     <button class="page-nav-btn" onclick="switchPage('energy',this)"><span class="nav-icon">⚡</span> Energy Calc</button>
   </div>
   <div class="api-bar">
@@ -208,11 +209,9 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 <!-- ====== TRAVEL PAGE ====== -->
 <div class="page" id="page-travel">
 <main class="main">
-  <div class="status-bar"><div><span class="status-dot idle" id="tvStatusDot"></span><span id="tvStatusText">Refresh to load travel data</span></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" onclick="refreshSection('travel')" style="padding:5px 12px;font-size:0.75rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>🔄 Refresh Travel</span></button><span id="tvLastUpdated"></span></div></div>
+  <div class="status-bar"><div><span class="status-dot idle" id="tvStatusDot"></span><span id="tvStatusText">Refresh to load travel data</span></div><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-primary" onclick="TV.refreshAndSync()" style="padding:5px 12px;font-size:0.75rem"><span>🔄 Refresh & Sync Travel</span></button><span id="tvLastUpdated"></span></div></div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-    <button class="btn" onclick="TV.loadHistory()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>📊 Load History</span></button>
-    <button class="btn btn-primary" onclick="TV.syncNow()"><span>🔄 Sync Log Now</span></button>
-    <span id="tvSyncInfo" style="font-size:0.72rem;color:var(--text3);align-self:center"></span>
+    <span id="tvSyncInfo" style="font-size:0.72rem;color:var(--text3);align-self:center">Tap "Refresh & Sync Travel" above to pull latest trips.</span>
     <button onclick="var a=document.getElementById('tvAdvanced');a.style.display=a.style.display==='none'?'flex':'none'" class="btn" style="margin-left:auto;font-size:0.72rem;padding:5px 12px;background:var(--bg3);color:var(--text2);border:1px solid var(--border);align-self:center">⚙ Advanced</button>
   </div>
   <div id="tvAdvanced" style="display:none;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
@@ -437,6 +436,12 @@ const TV=(function(){
     const _k=$('apiKey').value.trim();if(!_k){toast('⚠️ Enter your API key first');return}
     await runBackfill(null,false);
   }
+  async function refreshAndSync(){
+    const _k=$('apiKey').value.trim();if(!_k){toast('⚠️ Enter your API key first');return}
+    // Sync the log first (pulls latest trips), then refresh the display
+    await syncNow();
+    await refresh();
+  }
   async function syncNow(){
     const _k=$('apiKey').value.trim();if(!_k){toast('⚠️ Enter your API key first');return}
     $('tvStatusText').textContent='Syncing log from Torn...';$('tvStatusDot').className='status-dot loading';
@@ -634,12 +639,17 @@ const TV=(function(){
   }
   function toggleStockHist(){window._stockHistOpen=!window._stockHistOpen;renderStockHist()}
 
-  return{refresh,renderItems,loadHistory,syncNow,resetHistory,resumeBackfill,renderStockHist,renderPeriod,setPeriodType,periodNav,loadPricesAndRender,toggleStockHist,toggleTrip,tripPage,toggleAwards};
+  return{refresh,refreshAndSync,renderItems,loadHistory,syncNow,resetHistory,resumeBackfill,renderStockHist,renderPeriod,setPeriodType,periodNav,loadPricesAndRender,toggleStockHist,toggleTrip,tripPage,toggleAwards};
 })();
 </script>
 
 
 <!-- ====== ENERGY CALCULATOR PAGE ====== -->
+<div class="page" id="page-museum">
+  <div class="status-bar"><div><span class="status-dot idle" id="muStatusDot"></span><span id="muStatusText">Tap Refresh to check your museum sets</span></div><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-primary" onclick="MU.refresh()" style="padding:5px 12px;font-size:0.75rem"><span>🔄 Refresh Museum</span></button><span id="muLastUpdated"></span></div></div>
+  <div id="muContent"><div class="empty"><div class="empty-icon">🏛️</div><h3>Museum Set Tracker</h3><p>Enter API key & tap Refresh to see which point-earning sets you can complete from your inventory.</p></div></div>
+</div>
+
 <div class="page" id="page-energy">
 <main class="main">
   <div class="status-bar"><div><span class="status-dot idle" id="enStatusDot"></span><span id="enStatusText">Configure your settings & calculate</span></div><div id="enLastUpdated"></div></div>
@@ -1607,21 +1617,61 @@ const BS=(function(){
 
 // ====== DASHBOARD (growth: networth, battle, work) ======
 const DB=(function(){
-  let SNAPS=[]; // daily snapshots from Blob history.stats
-  let CURRENT=null; // live current values
+  let CURRENT=null;         // live current values
+  let SERIES={};            // field -> [{x:ts,y:val}] real historical series
+  let period=localStorage.getItem('db_period')||'monthly'; // monthly default (fewer calls)
+  const V1='https://api.torn.com/user/?selections=personalstats';
+
+  // Fetch a single stat's historical value at a timestamp (v1 API)
+  async function histStat(k,stat,ts){
+    try{const r=await fetch(V1+'&stat='+stat+'&timestamp='+ts+'&key='+encodeURIComponent(k));const j=await r.json();return j.personalstats?j.personalstats[stat]:null}catch(e){return null}
+  }
+
+  // Build date points from account start (Feb 2025) to now
+  function datePoints(mode){
+    const pts=[];const now=Date.now();
+    const start=Date.UTC(2025,1,1); // Feb 1 2025
+    const step=mode==='monthly'?30*86400000:7*86400000;
+    for(let t=start;t<=now;t+=step)pts.push(Math.floor(t/1000));
+    pts.push(Math.floor(now/1000)); // include now
+    return pts;
+  }
+
+  async function fetchSeries(k){
+    const cacheKey='db_series_'+period;
+    try{const c=JSON.parse(localStorage.getItem(cacheKey)||'null');if(c&&c.ts>Date.now()-86400000){SERIES=c.series;return}}catch(e){}
+    $('dbStatusText').textContent='Building your historical charts...';
+    // Order matters: networth first (most wanted), then the rest — render after each stat
+    const statList=[['networth','networth'],['bat_total','totalstats'],['work_manual','manuallabor'],['work_int','intelligence'],['work_end','endurance']];
+    const dates=datePoints(period);
+    const series={};for(const[f]of statList)series[f]=[];
+    let done=0;const totalCalls=statList.length*dates.length;
+    for(const[f,stat]of statList){
+      for(const ts of dates){
+        const v=await histStat(k,stat,ts);
+        if(v!=null&&v>0)series[f].push({x:ts,y:v});
+        done++;
+        await new Promise(r=>setTimeout(r,650));
+      }
+      // Render progressively as each stat's series completes
+      SERIES=series;render();
+      $('dbStatusText').textContent='Building charts... '+Math.round(done/totalCalls*100)+'%';
+    }
+    SERIES=series;
+    try{localStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),series}))}catch(e){}
+  }
 
   async function refresh(){
     const k=$('apiKey').value.trim();if(!k){$('dbStatusText').textContent='Enter API key';return}
     $('dbStatusDot').className='status-dot loading';$('dbStatusText').textContent='Loading stats...';
     try{
-      // Live current values (battle + personalstats networth/work)
       const [bs,ps]=await Promise.all([
         fetch('https://api.torn.com/v2/user/battlestats?key='+encodeURIComponent(k)).then(r=>r.json()).catch(()=>null),
         fetch('https://api.torn.com/v2/user/personalstats?cat=all&key='+encodeURIComponent(k)).then(r=>r.json()).catch(()=>null)
       ]);
       const b=(bs&&bs.battlestats)||bs||{};const p=(ps&&ps.personalstats)||{};const nw=p.networth||{};
       const js=(p.jobs&&p.jobs.stats)||{};
-      const bv=k=>(b[k]&&typeof b[k]==='object'?b[k].value:b[k])||0;
+      const bv=kk=>(b[kk]&&typeof b[kk]==='object'?b[kk].value:b[kk])||0;
       CURRENT={
         networth:nw.total!=null?nw.total:0,nw_bank:nw.bank||0,nw_stocks:nw.stock_market||0,
         nw_inventory:nw.inventory||0,nw_points:nw.points||0,nw_wallet:nw.wallet||0,nw_cayman:nw.overseas_bank||0,
@@ -1630,60 +1680,65 @@ const DB=(function(){
         work_manual:js.manual||0,work_int:js.intelligence||0,work_end:js.endurance||0
       };
       try{localStorage.setItem('db_current',JSON.stringify(CURRENT))}catch(e){}
-      // Historical snapshots from Blob
-      try{const r=await fetch('/.netlify/functions/get-history');const j=await r.json();SNAPS=j.stats||[]}catch(e){SNAPS=[]}
+      render();
+      // Fetch historical series (cached day-to-day)
+      await fetchSeries(k);
       render();
       $('dbStatusDot').className='status-dot ok';$('dbStatusText').textContent='Dashboard loaded';$('dbLastUpdated').textContent=new Date().toLocaleTimeString();
     }catch(e){$('dbStatusText').textContent='Error: '+e.message}
   }
 
   function loadCached(){
-    try{const c=localStorage.getItem('db_current');if(c){CURRENT=JSON.parse(c);render()}}catch(e){}
-    // also try pull snapshots (no live call)
-    fetch('/.netlify/functions/get-history').then(r=>r.json()).then(j=>{SNAPS=j.stats||[];render()}).catch(()=>{});
+    try{const c=localStorage.getItem('db_current');if(c){CURRENT=JSON.parse(c)}}catch(e){}
+    try{const s=JSON.parse(localStorage.getItem('db_series_'+period)||'null');if(s)SERIES=s.series}catch(e){}
+    render();
   }
 
+  function setPeriod(p){period=p;try{localStorage.setItem('db_period',p)}catch(e){}const k=$('apiKey').value.trim();if(k){SERIES={};fetchSeries(k).then(render)}render()}
+
   function delta(field){
-    if(!SNAPS.length||!CURRENT)return null;
-    const cur=CURRENT[field];
-    // find snapshot ~7 days ago
-    const wk=SNAPS.filter(s=>s.ts<=Date.now()/1000-7*86400);
-    const past=wk.length?wk[wk.length-1]:SNAPS[0];
-    if(!past||past[field]==null)return null;
-    return cur-past[field];
+    const s=SERIES[field];if(!s||s.length<2||!CURRENT)return null;
+    const cur=CURRENT[field];const past=s[Math.max(0,s.length-2)].y;
+    return cur-past;
   }
 
   function statCard(label,val,field,color,isMoney){
-    const d=delta(field);
-    let dhtml='';
-    if(d!=null&&d!==0){const up=d>0;dhtml='<div style="font-size:0.72rem;margin-top:2px;color:'+(up?'var(--green)':'var(--red)')+'">'+(up?'▲ +':'▼ ')+(isMoney?'$':'')+fN(Math.round(Math.abs(d)))+' / 7d</div>'}
+    const d=delta(field);let dhtml='';
+    if(d!=null&&d!==0){const up=d>0;dhtml='<div style="font-size:0.72rem;margin-top:2px;color:'+(up?'var(--green)':'var(--red)')+'">'+(up?'▲ +':'▼ ')+(isMoney?'$':'')+fN(Math.round(Math.abs(d)))+' / '+(period==='monthly'?'mo':'wk')+'</div>'}
     const disp=isMoney?('$'+fN(val)):fN(val);
     return '<div class="card"><div class="card-label">'+label+'</div><div class="card-value" style="color:'+(color||'var(--text)')+'">'+disp+'</div>'+dhtml+'</div>';
   }
 
-  function miniChart(field,color,title){
-    const pts=SNAPS.filter(s=>s[field]!=null&&s[field]>0).map(s=>({x:s.ts,y:s[field]}));
-    if(pts.length<2)return '<div class="tw"><div class="tt">'+title+'</div><div style="padding:20px;text-align:center;color:var(--text3);font-size:0.8rem">Growth chart builds up over time.<br>Needs a few days of snapshots — check back soon.</div></div>';
+  function chart(field,color,title,isMoney){
+    const pts=(SERIES[field]||[]).filter(p=>p.y>0);
+    // append current value as latest point
+    if(CURRENT&&CURRENT[field]>0)pts.push({x:Math.floor(Date.now()/1000),y:CURRENT[field]});
+    if(pts.length<2)return '<div class="tw"><div class="tt">'+title+'</div><div style="padding:20px;text-align:center;color:var(--text3);font-size:0.8rem">Loading historical data…</div></div>';
     const minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y));
     const minX=pts[0].x,maxX=pts[pts.length-1].x;
-    const W=600,H=120,pad=4;
+    const W=600,H=140,pad=6;
     const sx=x=>pad+(x-minX)/(maxX-minX||1)*(W-2*pad);
     const sy=y=>H-pad-(y-minY)/(maxY-minY||1)*(H-2*pad);
-    let path='M'+pts.map(p=>sx(p.x).toFixed(1)+','+sy(p.y).toFixed(1)).join(' L');
+    const path='M'+pts.map(p=>sx(p.x).toFixed(1)+','+sy(p.y).toFixed(1)).join(' L');
     const first=pts[0].y,last=pts[pts.length-1].y,growth=last-first,gpct=first?growth/first*100:0;
-    let h='<div class="tw"><div class="tt">'+title+' <span style="font-size:0.72rem;color:'+(growth>=0?'var(--green)':'var(--red)')+'">'+(growth>=0?'+':'')+fN(Math.round(growth))+' ('+(gpct>=0?'+':'')+gpct.toFixed(1)+'%)</span></div>';
+    const gtxt=(isMoney?'$':'')+fN(Math.round(growth));
+    let h='<div class="tw"><div class="tt">'+title+' <span style="font-size:0.72rem;color:'+(growth>=0?'var(--green)':'var(--red)')+'">'+(growth>=0?'+':'')+gtxt+' ('+(gpct>=0?'+':'')+gpct.toFixed(0)+'%)</span></div>';
     h+='<div style="padding:12px 14px"><svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto" preserveAspectRatio="none">';
+    // gridlines
+    for(let g=0;g<=3;g++){const yy=pad+g/3*(H-2*pad);h+='<line x1="'+pad+'" y1="'+yy.toFixed(0)+'" x2="'+(W-pad)+'" y2="'+yy.toFixed(0)+'" stroke="var(--border)" stroke-width="0.5" opacity="0.4"/>'}
+    h+='<path d="'+path+' L'+sx(maxX).toFixed(1)+','+(H-pad)+' L'+sx(minX).toFixed(1)+','+(H-pad)+' Z" fill="'+color+'" opacity="0.1"/>';
     h+='<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>';
-    h+='<path d="'+path+' L'+sx(maxX).toFixed(1)+','+(H-pad)+' L'+sx(minX).toFixed(1)+','+(H-pad)+' Z" fill="'+color+'" opacity="0.08"/>';
-    h+='</svg><div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text3);margin-top:4px"><span>'+new Date(minX*1000).toLocaleDateString()+'</span><span>'+new Date(maxX*1000).toLocaleDateString()+'</span></div></div></div>';
+    h+='</svg><div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text3);margin-top:4px"><span>'+new Date(minX*1000).toLocaleDateString()+'</span><span>now</span></div></div></div>';
     return h;
   }
 
   function render(){
     if(!CURRENT){$('dbContent').innerHTML='<div class="empty"><div class="empty-icon">📊</div><h3>Tap Refresh to load your stats</h3></div>';return}
-    const c=CURRENT;
-    let h='';
-    // Networth section
+    const c=CURRENT;let h='';
+    // Period toggle
+    h+='<div style="display:flex;gap:8px;padding:0 4px 14px">';
+    for(const[p,l]of[['weekly','Weekly'],['monthly','Monthly']])h+='<button onclick="DB.setPeriod(\''+p+'\')" class="btn" style="font-size:0.75rem;padding:5px 14px;background:'+(period===p?'var(--accent)':'var(--bg2)')+';color:'+(period===p?'#fff':'var(--text)')+';border:1px solid var(--border)">'+l+'</button>';
+    h+='</div>';
     h+='<div class="tw"><div class="tt">💰 Net Worth</div><div style="padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:12px">';
     h+=statCard('Total',c.networth,'networth','var(--green)',true);
     h+=statCard('Bank',c.nw_bank,'nw_bank','var(--cyan)',true);
@@ -1691,10 +1746,8 @@ const DB=(function(){
     h+=statCard('Inventory',c.nw_inventory,'nw_inventory','var(--amber)',true);
     h+=statCard('Points',c.nw_points,'nw_points','var(--blue)',true);
     h+='</div></div>';
-    h+=miniChart('networth','var(--green)','📈 Net Worth Growth');
-    // Battle stats
-    const batD=delta('bat_total');
-    let batDelta='';if(batD!=null&&batD!==0){const up=batD>0;batDelta='<div style="font-size:0.72rem;margin-top:2px;color:'+(up?'var(--green)':'var(--red)')+'">'+(up?'▲ +':'▼ ')+fN(Math.round(batD))+' / 7d</div>'}
+    h+=chart('networth','var(--green)','📈 Net Worth Growth',true);
+    const batD=delta('bat_total');let batDelta='';if(batD!=null&&batD!==0){const up=batD>0;batDelta='<div style="font-size:0.72rem;margin-top:2px;color:'+(up?'var(--green)':'var(--red)')+'">'+(up?'▲ +':'▼ ')+fN(Math.round(Math.abs(batD)))+' / '+(period==='monthly'?'mo':'wk')+'</div>'}
     h+='<div class="tw"><div class="tt">⚔️ Battle Stats</div><div style="padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:12px">';
     h+='<div class="card"><div class="card-label">Total</div><div class="card-value" style="color:var(--red)">'+fN(c.bat_total)+'</div>'+batDelta+'</div>';
     h+='<div class="card"><div class="card-label">Strength</div><div class="card-value">'+fN(c.str)+'</div></div>';
@@ -1702,18 +1755,125 @@ const DB=(function(){
     h+='<div class="card"><div class="card-label">Speed</div><div class="card-value">'+fN(c.spd)+'</div></div>';
     h+='<div class="card"><div class="card-label">Dexterity</div><div class="card-value">'+fN(c.dex)+'</div></div>';
     h+='</div></div>';
-    h+=miniChart('bat_total','var(--red)','📈 Battle Stat Growth');
-    // Work stats
+    h+=chart('bat_total','var(--red)','📈 Battle Stat Growth',false);
     h+='<div class="tw"><div class="tt">💼 Work Stats</div><div style="padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:12px">';
     h+='<div class="card"><div class="card-label">Manual Labor</div><div class="card-value" style="color:var(--amber)">'+fN(c.work_manual)+'</div></div>';
     h+='<div class="card"><div class="card-label">Intelligence</div><div class="card-value" style="color:var(--cyan)">'+fN(c.work_int)+'</div></div>';
     h+='<div class="card"><div class="card-label">Endurance</div><div class="card-value" style="color:var(--green)">'+fN(c.work_end)+'</div></div>';
     h+='</div></div>';
-    const snapNote=SNAPS.length<2?'<div style="padding:12px 14px;font-size:0.72rem;color:var(--text3)">📅 Growth charts fill in as daily snapshots accumulate (one per day from the 6-hour sync). You have '+SNAPS.length+' snapshot'+(SNAPS.length===1?'':'s')+' so far.</div>':'';
-    $('dbContent').innerHTML=h+snapNote;
+    h+=chart('work_manual','var(--amber)','📈 Manual Labor Growth',false);
+    $('dbContent').innerHTML=h;
   }
 
-  return{refresh,loadCached,render};
+  return{refresh,loadCached,render,setPeriod};
+})();
+
+// ====== MUSEUM (set tracker + points valuation) ======
+const MU=(function(){
+  // Museum sets from wiki: name -> {points, items:[{name,id,qty}]}
+  const SETS=[
+    {name:'Plushie Set',points:10,cat:'plushie',items:[
+      {n:'Jaguar Plushie',id:258},{n:'Lion Plushie',id:281},{n:'Panda Plushie',id:274},{n:'Monkey Plushie',id:269},
+      {n:'Chamois Plushie',id:273},{n:'Wolverine Plushie',id:261},{n:'Nessie Plushie',id:266},{n:'Red Fox Plushie',id:268},
+      {n:'Camel Plushie',id:384},{n:'Kitten Plushie',id:215},{n:'Teddy Bear Plushie',id:187},{n:'Sheep Plushie',id:186},{n:'Stingray Plushie',id:618}]},
+    {name:'Exotic Flower Set',points:10,cat:'flower',items:[
+      {n:'Dahlia',id:260},{n:'Orchid',id:264},{n:'African Violet',id:282},{n:'Cherry Blossom',id:277},{n:'Peony',id:276},
+      {n:'Ceibo Flower',id:271},{n:'Edelweiss',id:272},{n:'Crocus',id:263},{n:'Heather',id:267},{n:'Tribulus Omanense',id:385},{n:'Banana Orchid',id:617}]},
+    {name:'Arrowhead Set',points:25,cat:'collectible',items:[
+      {n:'Obsidian Point',id:1499},{n:'Quartz Point',id:1504},{n:'Basalt Point',id:1502},{n:'Chert Point',id:1501},{n:'Chalcedony Point',id:1503},{n:'Quartzite Point',id:1500}]},
+    {name:'Medieval Coin Set',points:100,cat:'collectible',items:[
+      {n:'Leopard Coin',id:450},{n:'Florin Coin',id:451},{n:'Gold Noble Coin',id:452}]},
+    {name:'Senet Game Set',points:2000,cat:'collectible',items:[
+      {n:'Senet board',id:0,qty:1},{n:'White Senet pawn',id:0,qty:5},{n:'Black Senet pawn',id:0,qty:5}]}
+  ];
+  // Single-item artifacts
+  const ARTIFACTS=[
+    {n:'Meteorite Fragment',id:1488,points:15},{n:'Patagonian Fossil',id:1487,points:20},
+    {n:'Vairocana Buddha Sculpture',id:454,points:100},{n:'Ganesha Sculpture',id:453,points:250},
+    {n:'Shabti Sculpture',id:458,points:500},{n:'Egyptian Amulet',id:459,points:10000}
+  ];
+  let INV={};      // id -> amount, and name -> amount
+  let POINT_VALUE=0; // $/point
+  let POINTS_HELD=0;
+
+  async function refresh(){
+    const k=$('apiKey').value.trim();if(!k){$('muStatusText').textContent='Enter API key';return}
+    $('muStatusDot').className='status-dot loading';$('muStatusText').textContent='Loading inventory & point value...';
+    try{
+      // Pull relevant inventory categories (plushie, flower, collectible, special)
+      INV={};const cats=['plushie','flower','collectible','special','other'];
+      for(const cat of cats){
+        try{const r=await fetch('https://api.torn.com/v2/user/inventory?cat='+cat+'&key='+encodeURIComponent(k));const j=await r.json();
+          const items=(j.inventory&&j.inventory.items)||[];
+          for(const it of items){INV[it.id]=(INV[it.id]||0)+it.amount;INV[it.name]=(INV[it.name]||0)+it.amount}
+        }catch(e){}
+        await new Promise(r=>setTimeout(r,200));
+      }
+      // Point valuation: market lowest + networth method
+      let mktLow=0;
+      try{const r=await fetch('https://api.torn.com/v2/market/pointsmarket?key='+encodeURIComponent(k));const j=await r.json();
+        const offers=Object.values(j.pointsmarket||{});if(offers.length)mktLow=Math.min(...offers.map(o=>o.cost))}catch(e){}
+      let nwVal=0;
+      try{const r=await fetch('https://api.torn.com/user/?selections=money,personalstats&key='+encodeURIComponent(k));const j=await r.json();
+        POINTS_HELD=j.points||0;const pnw=(j.personalstats&&j.personalstats.networth)||0;
+        if(POINTS_HELD>0&&pnw>0)nwVal=pnw/POINTS_HELD}catch(e){}
+      // If networth points not in v1, try v2
+      if(!nwVal){try{const r=await fetch('https://api.torn.com/v2/user/personalstats?cat=all&key='+encodeURIComponent(k));const j=await r.json();const pnw=j.personalstats&&j.personalstats.networth&&j.personalstats.networth.points;if(pnw&&POINTS_HELD>0)nwVal=pnw/POINTS_HELD}catch(e){}}
+      POINT_VALUE=mktLow||nwVal||0;window._muMktLow=mktLow;window._muNwVal=nwVal;
+      render();
+      $('muStatusDot').className='status-dot ok';$('muStatusText').textContent='Museum data loaded';$('muLastUpdated').textContent=new Date().toLocaleTimeString();
+    }catch(e){$('muStatusText').textContent='Error: '+e.message}
+  }
+
+  function invCount(item){
+    return INV[item.id]||INV[item.n]||0;
+  }
+
+  function render(){
+    const pv=POINT_VALUE;
+    let h='';
+    // Point value banner
+    h+='<div class="tw"><div class="tt">💎 Point Value</div><div style="padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">';
+    h+='<div class="card"><div class="card-label">Market Lowest</div><div class="card-value" style="color:var(--cyan)">'+(window._muMktLow?'$'+fN(window._muMktLow):'—')+'</div><div style="font-size:0.7rem;color:var(--text3)">per point</div></div>';
+    h+='<div class="card"><div class="card-label">Via Net Worth</div><div class="card-value" style="color:var(--purple)">'+(window._muNwVal?'$'+fN(Math.round(window._muNwVal)):'—')+'</div><div style="font-size:0.7rem;color:var(--text3)">points NW ÷ count</div></div>';
+    if(POINTS_HELD)h+='<div class="card"><div class="card-label">Your Points</div><div class="card-value">'+fN(POINTS_HELD)+'</div><div style="font-size:0.7rem;color:var(--text3)">≈ $'+fN(Math.round(POINTS_HELD*pv))+'</div></div>';
+    h+='</div></div>';
+
+    // Sets you can complete
+    h+='<div class="tw"><div class="tt">🏛️ Museum Sets</div><div style="padding:8px 14px;font-size:0.76rem;color:var(--text3)">Shows how many complete sets you can trade (limited by your scarcest item). Value = points × $'+fN(Math.round(pv))+'/pt.</div>';
+    h+='<table><thead><tr><th>Set</th><th class="r">Points</th><th class="r">Sets Ready</th><th class="r">Set Value</th><th>Missing / Bottleneck</th></tr></thead><tbody>';
+    // Sort by completable sets * value
+    const setRows=SETS.map(set=>{
+      const counts=set.items.map(it=>({...it,have:invCount(it),need:it.qty||1}));
+      const ready=Math.min(...counts.map(c=>Math.floor(c.have/c.need)));
+      const bottleneck=counts.filter(c=>Math.floor(c.have/c.need)===ready).map(c=>c.n+' ('+c.have+'/'+c.need+')');
+      const missing=counts.filter(c=>c.have<c.need);
+      return{set,ready,counts,bottleneck,missing,value:ready*set.points*pv};
+    }).sort((a,b)=>b.ready-a.ready||b.set.points-a.set.points);
+    for(const r of setRows){
+      const rc=r.ready>0?'var(--green)':'var(--text3)';
+      const note=r.ready>0?('limited by '+r.bottleneck.slice(0,2).join(', ')):(r.missing.length+' items missing');
+      h+='<tr style="cursor:pointer" onclick="MU.toggleSet(\''+r.set.name.replace(/ /g,'_')+'\')"><td style="font-weight:600">'+(window._muOpen&&window._muOpen[r.set.name]?'▼ ':'▶ ')+r.set.name+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+r.set.points+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+rc+'">'+r.ready+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--green)">'+(r.value>0?'$'+fN(Math.round(r.value)):'—')+'</td><td style="font-size:0.74rem;color:var(--text3)">'+note+'</td></tr>';
+      // Expanded item detail
+      if(window._muOpen&&window._muOpen[r.set.name]){
+        h+='<tr style="background:rgba(0,0,0,0.15)"><td colspan="5" style="padding:8px 24px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:4px">';
+        for(const c of r.counts){const ok=c.have>=(c.qty||1);h+='<div style="font-size:0.74rem;display:flex;justify-content:space-between;gap:8px"><span style="color:'+(ok?'var(--green)':'var(--red)')+'">'+(ok?'✓':'✗')+' '+c.n+'</span><span style="font-family:JetBrains Mono,monospace;color:var(--text2)">'+c.have+'/'+(c.qty||1)+'</span></div>'}
+        h+='</div></td></tr>';
+      }
+    }
+    h+='</tbody></table></div>';
+
+    // Single-item artifacts
+    h+='<div class="tw"><div class="tt">🗿 Artifacts (single items)</div><table><thead><tr><th>Artifact</th><th class="r">Points</th><th class="r">You Have</th><th class="r">Value</th></tr></thead><tbody>';
+    for(const a of ARTIFACTS){const have=INV[a.id]||INV[a.n]||0;const val=have*a.points*pv;
+      h+='<tr><td style="font-weight:600">'+a.n+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fN(a.points)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:'+(have>0?'var(--green)':'var(--text3)')+'">'+have+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--green)">'+(val>0?'$'+fN(Math.round(val)):'—')+'</td></tr>';
+    }
+    h+='</tbody></table><div style="padding:8px 14px;font-size:0.7rem;color:var(--text3)">Note: Arrowhead, Medieval Coin & Senet item IDs need matching from your inventory by name (some may not be tracked if not in the pulled categories).</div></div>';
+    $('muContent').innerHTML=h;
+  }
+  function toggleSet(name){const real=name.replace(/_/g,' ');if(!window._muOpen)window._muOpen={};window._muOpen[real]=!window._muOpen[real];render()}
+
+  return{refresh,render,toggleSet};
 })();
 
 // ====== UNIFIED FETCH ======
