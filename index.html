@@ -1861,11 +1861,14 @@ const MU=(function(){
       try{const r=await fetch('https://api.torn.com/v2/market/pointsmarket?key='+encodeURIComponent(k));const j=await r.json();
         const offers=Object.values(j.pointsmarket||{});if(offers.length)mktLow=Math.min(...offers.map(o=>o.cost))}catch(e){}
       let nwVal=0;
-      try{const r=await fetch('https://api.torn.com/user/?selections=money,personalstats&key='+encodeURIComponent(k));const j=await r.json();
-        POINTS_HELD=j.points||0;const pnw=(j.personalstats&&j.personalstats.networth)||0;
-        if(POINTS_HELD>0&&pnw>0)nwVal=pnw/POINTS_HELD}catch(e){}
-      // If networth points not in v1, try v2
-      if(!nwVal){try{const r=await fetch('https://api.torn.com/v2/user/personalstats?cat=all&key='+encodeURIComponent(k));const j=await r.json();const pnw=j.personalstats&&j.personalstats.networth&&j.personalstats.networth.points;if(pnw&&POINTS_HELD>0)nwVal=pnw/POINTS_HELD}catch(e){}}
+      // Get points count (v1 money selection) and the POINTS PORTION of networth (v2)
+      try{const r=await fetch('https://api.torn.com/user/?selections=money&key='+encodeURIComponent(k));const j=await r.json();POINTS_HELD=j.points||0}catch(e){}
+      try{
+        const r=await fetch('https://api.torn.com/v2/user/personalstats?cat=all&key='+encodeURIComponent(k));const j=await r.json();
+        const pointsNW=j.personalstats&&j.personalstats.networth&&j.personalstats.networth.points; // $ value of points held
+        if(pointsNW&&POINTS_HELD>0)nwVal=pointsNW/POINTS_HELD;
+        window._muPointsNW=pointsNW||0;
+      }catch(e){}
       POINT_VALUE=mktLow||nwVal||0;window._muMktLow=mktLow;window._muNwVal=nwVal;
       render();
       $('muStatusDot').className='status-dot ok';$('muStatusText').textContent='Museum data loaded';$('muLastUpdated').textContent=new Date().toLocaleTimeString();
@@ -1882,33 +1885,50 @@ const MU=(function(){
     // Point value banner
     h+='<div class="tw"><div class="tt">💎 Point Value</div><div style="padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">';
     h+='<div class="card"><div class="card-label">Market Lowest</div><div class="card-value" style="color:var(--cyan)">'+(window._muMktLow?'$'+fN(window._muMktLow):'—')+'</div><div style="font-size:0.7rem;color:var(--text3)">per point</div></div>';
-    h+='<div class="card"><div class="card-label">Via Net Worth</div><div class="card-value" style="color:var(--purple)">'+(window._muNwVal?'$'+fN(Math.round(window._muNwVal)):'—')+'</div><div style="font-size:0.7rem;color:var(--text3)">points NW ÷ count</div></div>';
+    h+='<div class="card"><div class="card-label">Via Net Worth</div><div class="card-value" style="color:var(--purple)">'+(window._muNwVal?'$'+fN(Math.round(window._muNwVal)):'—')+'</div><div style="font-size:0.7rem;color:var(--text3)">points NW ($'+fN(Math.round(window._muPointsNW||0))+') ÷ '+fN(POINTS_HELD)+'</div></div>';
     if(POINTS_HELD)h+='<div class="card"><div class="card-label">Your Points</div><div class="card-value">'+fN(POINTS_HELD)+'</div><div style="font-size:0.7rem;color:var(--text3)">≈ $'+fN(Math.round(POINTS_HELD*pv))+'</div></div>';
     h+='</div></div>';
 
-    // Sets you can complete
-    h+='<div class="tw"><div class="tt">🏛️ Museum Sets</div><div style="padding:8px 14px;font-size:0.76rem;color:var(--text3)">Shows how many complete sets you can trade (limited by your scarcest item). Value = points × $'+fN(Math.round(pv))+'/pt.</div>';
-    h+='<table><thead><tr><th>Set</th><th class="r">Points</th><th class="r">Sets Ready</th><th class="r">Set Value</th><th>Missing / Bottleneck</th></tr></thead><tbody>';
-    // Sort by completable sets * value
+    // Sets you can complete — card blocks
+    h+='<div class="tw"><div class="tt">🏛️ Museum Sets</div><div style="padding:8px 14px;font-size:0.76rem;color:var(--text3)">Complete sets you can trade (limited by your scarcest item = the bottleneck, marked ⚠). Value = sets × points × $'+fN(Math.round(pv))+'/pt.</div>';
     const setRows=SETS.map(set=>{
-      const counts=set.items.map(it=>({...it,have:invCount(it),need:it.qty||1}));
-      const ready=Math.min(...counts.map(c=>Math.floor(c.have/c.need)));
-      const bottleneck=counts.filter(c=>Math.floor(c.have/c.need)===ready).map(c=>c.n+' ('+c.have+'/'+c.need+')');
+      const counts=set.items.map(it=>({...it,have:invCount(it),need:it.qty||1,sets:Math.floor(invCount(it)/(it.qty||1))}));
+      const ready=Math.min(...counts.map(c=>c.sets));
       const missing=counts.filter(c=>c.have<c.need);
-      return{set,ready,counts,bottleneck,missing,value:ready*set.points*pv};
-    }).sort((a,b)=>b.ready-a.ready||b.set.points-a.set.points);
+      return{set,ready,counts,missing,value:ready*set.points*pv};
+    }).sort((a,b)=>b.value-a.value||b.ready-a.ready);
+    h+='<div style="padding:6px 14px 14px;display:flex;flex-direction:column;gap:12px">';
     for(const r of setRows){
       const rc=r.ready>0?'var(--green)':'var(--text3)';
-      const note=r.ready>0?('limited by '+r.bottleneck.slice(0,2).join(', ')):(r.missing.length+' items missing');
-      h+='<tr style="cursor:pointer" onclick="MU.toggleSet(\''+r.set.name.replace(/ /g,'_')+'\')"><td style="font-weight:600">'+(window._muOpen&&window._muOpen[r.set.name]?'▼ ':'▶ ')+r.set.name+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+r.set.points+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+rc+'">'+r.ready+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--green)">'+(r.value>0?'$'+fN(Math.round(r.value)):'—')+'</td><td style="font-size:0.74rem;color:var(--text3)">'+note+'</td></tr>';
-      // Expanded item detail
-      if(window._muOpen&&window._muOpen[r.set.name]){
-        h+='<tr style="background:rgba(0,0,0,0.15)"><td colspan="5" style="padding:8px 24px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:4px">';
-        for(const c of r.counts){const ok=c.have>=(c.qty||1);h+='<div style="font-size:0.74rem;display:flex;justify-content:space-between;gap:8px"><span style="color:'+(ok?'var(--green)':'var(--red)')+'">'+(ok?'✓':'✗')+' '+c.n+'</span><span style="font-family:JetBrains Mono,monospace;color:var(--text2)">'+c.have+'/'+(c.qty||1)+'</span></div>'}
-        h+='</div></td></tr>';
+      // The bottleneck items are those whose set-count equals the limiting minimum
+      const minSets=r.ready;
+      h+='<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg2)">';
+      // Header row
+      h+='<div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--bg3)">';
+      h+='<div style="font-weight:600;font-size:0.95rem">'+r.set.name+' <span style="font-size:0.72rem;color:var(--text3);font-weight:400">'+r.set.points+' pts/set · '+r.set.items.length+' items</span></div>';
+      h+='<div style="display:flex;gap:18px;align-items:center">';
+      h+='<div style="text-align:right"><div style="font-size:0.68rem;color:var(--text3)">SETS READY</div><div style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:1.1rem;color:'+rc+'">'+r.ready+'</div></div>';
+      h+='<div style="text-align:right"><div style="font-size:0.68rem;color:var(--text3)">VALUE</div><div style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--green)">'+(r.value>0?'$'+fN(Math.round(r.value)):'—')+'</div></div>';
+      h+='</div></div>';
+      // Item grid — each item a chip; bottleneck highlighted
+      h+='<div style="padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">';
+      for(const c of r.counts){
+        const isBottleneck=c.sets===minSets;
+        const has=c.have>=c.need;
+        const bg=isBottleneck?'rgba(251,175,36,0.12)':(has?'rgba(52,208,88,0.06)':'rgba(245,101,101,0.08)');
+        const bord=isBottleneck?'var(--amber)':(has?'rgba(52,208,88,0.2)':'rgba(245,101,101,0.25)');
+        const icon=isBottleneck?'⚠':(has?'✓':'✗');
+        const iconC=isBottleneck?'var(--amber)':(has?'var(--green)':'var(--red)');
+        h+='<div style="padding:7px 10px;border:1px solid '+bord+';border-radius:7px;background:'+bg+';display:flex;justify-content:space-between;align-items:center;gap:6px">';
+        h+='<span style="font-size:0.76rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:'+iconC+'">'+icon+'</span> '+c.n+'</span>';
+        h+='<span style="font-family:JetBrains Mono,monospace;font-size:0.76rem;font-weight:600;color:'+(has?'var(--text)':'var(--red)')+'">'+fN(c.have)+(c.need>1?'/'+c.need:'')+'</span>';
+        h+='</div>';
       }
+      h+='</div>';
+      if(r.ready>0)h+='<div style="padding:0 14px 12px;font-size:0.72rem;color:var(--amber)">⚠ Bottleneck: '+r.counts.filter(c=>c.sets===minSets).map(c=>c.n+' ('+c.have+')').join(', ')+' — get more of these to make additional sets</div>';
+      h+='</div>';
     }
-    h+='</tbody></table></div>';
+    h+='</div></div>';
 
     // Single-item artifacts
     h+='<div class="tw"><div class="tt">🗿 Artifacts (single items)</div><table><thead><tr><th>Artifact</th><th class="r">Points</th><th class="r">You Have</th><th class="r">Value</th></tr></thead><tbody>';
