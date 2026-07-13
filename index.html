@@ -1840,6 +1840,7 @@ const MU=(function(){
     {n:'Shabti Sculpture',id:458,points:500},{n:'Egyptian Amulet',id:459,points:10000}
   ];
   let INV={};      // id -> amount, and name -> amount
+  let ITEM_PRICES={}; // id -> {buy, market}
   let POINT_VALUE=0; // $/point
   let POINTS_HELD=0;
 
@@ -1870,6 +1871,11 @@ const MU=(function(){
         window._muPointsNW=pointsNW||0;
       }catch(e){}
       POINT_VALUE=mktLow||nwVal||0;window._muMktLow=mktLow;window._muNwVal=nwVal;
+      // Load item buy/market prices (bulk items call) for set valuation
+      try{
+        const r=await fetch('https://api.torn.com/v2/torn/items?key='+encodeURIComponent(k));const j=await r.json();
+        ITEM_PRICES={};for(const it of (j.items||[])){const v=it.value||{};ITEM_PRICES[it.id]={buy:v.buy_price||0,market:v.market_price||0}}
+      }catch(e){}
       render();
       $('muStatusDot').className='status-dot ok';$('muStatusText').textContent='Museum data loaded';$('muLastUpdated').textContent=new Date().toLocaleTimeString();
     }catch(e){$('muStatusText').textContent='Error: '+e.message}
@@ -1890,12 +1896,19 @@ const MU=(function(){
     h+='</div></div>';
 
     // Sets you can complete — card blocks
-    h+='<div class="tw"><div class="tt">🏛️ Museum Sets</div><div style="padding:8px 14px;font-size:0.76rem;color:var(--text3)">Complete sets you can trade (limited by your scarcest item = the bottleneck, marked ⚠). Value = sets × points × $'+fN(Math.round(pv))+'/pt.</div>';
+    h+='<div class="tw"><div class="tt">🏛️ Museum Sets</div><div style="padding:8px 14px;font-size:0.76rem;color:var(--text3)">Per complete set: <b style="color:var(--purple)">X = Point Value</b> (museum trade @ $'+fN(Math.round(pv))+'/pt) · <b style="color:var(--cyan)">Y = Market Value</b> (sell items on market) · <b style="color:var(--amber)">Z = Buy Cost</b> (foreign shop, fixed). <b>Point÷Buy >100% = profitable</b> to buy & trade for points. Bottleneck item marked ⚠.</div>';
     const setRows=SETS.map(set=>{
-      const counts=set.items.map(it=>({...it,have:invCount(it),need:it.qty||1,sets:Math.floor(invCount(it)/(it.qty||1))}));
+      const counts=set.items.map(it=>({...it,have:invCount(it),need:it.qty||1,sets:Math.floor(invCount(it)/(it.qty||1)),
+        buy:(ITEM_PRICES[it.id]||{}).buy||0,market:(ITEM_PRICES[it.id]||{}).market||0}));
       const ready=Math.min(...counts.map(c=>c.sets));
       const missing=counts.filter(c=>c.have<c.need);
-      return{set,ready,counts,missing,value:ready*set.points*pv};
+      // Per-SET totals (one complete set's worth)
+      const setPointVal=set.points*pv;                              // X: point value of one set
+      const setMarketVal=counts.reduce((s,c)=>s+c.market*(c.qty||1),0); // Y: market value of items in one set
+      const buyKnown=counts.every(c=>c.buy>0);                      // buy cost only if ALL items have a buy price
+      const setBuyCost=buyKnown?counts.reduce((s,c)=>s+c.buy*(c.qty||1),0):null; // Z
+      const profitPct=(setBuyCost&&setBuyCost>0)?(setPointVal/setBuyCost*100):null; // X/Z %
+      return{set,ready,counts,missing,value:ready*setPointVal,setPointVal,setMarketVal,setBuyCost,profitPct};
     }).sort((a,b)=>b.value-a.value||b.ready-a.ready);
     h+='<div style="padding:6px 14px 14px;display:flex;flex-direction:column;gap:12px">';
     for(const r of setRows){
@@ -1904,12 +1917,22 @@ const MU=(function(){
       const minSets=r.ready;
       h+='<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg2)">';
       // Header row
-      h+='<div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--bg3)">';
+      h+='<div style="padding:12px 14px;background:var(--bg3)">';
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">';
       h+='<div style="font-weight:600;font-size:0.95rem">'+r.set.name+' <span style="font-size:0.72rem;color:var(--text3);font-weight:400">'+r.set.points+' pts/set · '+r.set.items.length+' items</span></div>';
-      h+='<div style="display:flex;gap:18px;align-items:center">';
-      h+='<div style="text-align:right"><div style="font-size:0.68rem;color:var(--text3)">SETS READY</div><div style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:1.1rem;color:'+rc+'">'+r.ready+'</div></div>';
-      h+='<div style="text-align:right"><div style="font-size:0.68rem;color:var(--text3)">VALUE</div><div style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--green)">'+(r.value>0?'$'+fN(Math.round(r.value)):'—')+'</div></div>';
-      h+='</div></div>';
+      h+='<div style="text-align:right"><span style="font-size:0.68rem;color:var(--text3)">SETS READY </span><span style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:1.1rem;color:'+rc+'">'+r.ready+'</span></div>';
+      h+='</div>';
+      // Per-set value comparison row: X point / Y market / Z buy / profitability
+      const ppct=r.profitPct;
+      const pcColor=ppct==null?'var(--text3)':(ppct>=100?'var(--green)':'var(--red)');
+      h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">';
+      h+='<div style="background:var(--bg2);border-radius:6px;padding:7px 10px"><div style="font-size:0.62rem;color:var(--text3);letter-spacing:0.5px">POINT VALUE (X)</div><div style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--purple)">$'+fN(Math.round(r.setPointVal))+'</div></div>';
+      h+='<div style="background:var(--bg2);border-radius:6px;padding:7px 10px"><div style="font-size:0.62rem;color:var(--text3);letter-spacing:0.5px">MARKET VALUE (Y)</div><div style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--cyan)">$'+fN(Math.round(r.setMarketVal))+'</div></div>';
+      h+='<div style="background:var(--bg2);border-radius:6px;padding:7px 10px"><div style="font-size:0.62rem;color:var(--text3);letter-spacing:0.5px">BUY COST (Z)</div><div style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--amber)">'+(r.setBuyCost!=null?'$'+fN(Math.round(r.setBuyCost)):'N/A')+'</div></div>';
+      h+='<div style="background:'+(ppct!=null&&ppct>=100?'rgba(52,208,88,0.1)':'var(--bg2)')+';border-radius:6px;padding:7px 10px"><div style="font-size:0.62rem;color:var(--text3);letter-spacing:0.5px">POINT ÷ BUY</div><div style="font-family:JetBrains Mono,monospace;font-weight:700;color:'+pcColor+'">'+(ppct!=null?ppct.toFixed(0)+'%':'N/A')+(ppct!=null&&ppct>=100?' ✓':'')+'</div></div>';
+      h+='</div>';
+      if(r.ready>0)h+='<div style="text-align:right;margin-top:8px;font-size:0.72rem;color:var(--text3)">Your ready sets total: <b style="color:var(--green)">$'+fN(Math.round(r.value))+'</b> in points</div>';
+      h+='</div>';
       // Item grid — each item a chip; bottleneck highlighted
       h+='<div style="padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">';
       for(const c of r.counts){
