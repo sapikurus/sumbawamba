@@ -43,7 +43,7 @@ async function doSync(KEY, opts){
       const t=e.details&&e.details.title, d=e.data||{};
       if(t==='Travel depart'){
         const dur=d.duration||0;
-        if(!seen.has(e.id)){newTravel.push({id:e.id,ts:e.timestamp,area:d.destination!==1?d.destination:d.origin,duration:dur,method:d.travel_method||''});seen.add(e.id)}
+        if(!seen.has(e.id)){newTravel.push({id:e.id,ts:e.timestamp,area:d.destination,origin:d.origin,duration:dur,method:d.travel_method||''});seen.add(e.id)}
       }else if(t==='Item abroad buy'){
         if(!seen.has(e.id)){newBuys.push({id:e.id,ts:e.timestamp,item:d.item,qty:d.quantity,costEach:d.cost_each,area:d.area});seen.add(e.id)}
       }

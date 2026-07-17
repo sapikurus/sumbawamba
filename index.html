@@ -241,7 +241,10 @@ const TV=(function(){
   let ITEM_DATA={};    // id -> {name, country, buyPrice, npcSell, marketRef} from Torn items API
   let PRICES={};       // id -> {low, avg} live market
   let HISTORY=null,LOGGED_BUYS={};
-  const AREA_MAP={1:'Torn',2:'Mexico',3:'Cayman Islands',4:'Canada',5:'Hawaii',6:'China',7:'Argentina',8:'Switzerland',9:'Japan',10:'UAE',11:'United Kingdom',12:'South Africa'};
+  // Area codes VERIFIED against real purchase history (item vendor country vs logged area).
+  // Confirmed: 3=Hawaii, 5=Japan, 6=China, 7=Argentina, 8=Switzerland, 9=Canada, 10=UK.
+  // Unconfirmed codes are left out — an unknown code shows "Area N" rather than a wrong guess.
+  const AREA_MAP={1:'Torn',3:'Hawaii',5:'Japan',6:'China',7:'Argentina',8:'Switzerland',9:'Canada',10:'United Kingdom'};
 
   // Award tiers
   const AWARDS_TIME=[{d:7,name:'Tourist'},{d:31,name:'Frequent Flyer'},{d:365,name:'Globetrotter'}];
@@ -514,6 +517,28 @@ const TV=(function(){
   }
   function bestSell(id,disc){const d=ITEM_DATA[id]||{};const p=PRICES[id]||{};const mkt=(p.low||p.avg||d.marketRef||0);const mktNet=mkt*(1-disc);const npc=d.npcSell||0;return npc>mktNet&&npc>0?{val:npc,npc:true}:{val:mktNet,npc:false}}
 
+  // ===== MUSEUM POINT VALUATION =====
+  // For items in a museum set, an item's point worth = (its buy price / total set buy cost)
+  // x set points x $/point. Uses the point value from the Museum tab if available.
+  const MUSEUM_SETS={
+    flower:{points:10,ids:[260,264,282,277,276,271,272,263,267,385,617]},
+    plushie:{points:10,ids:[258,281,274,269,273,261,266,268,384,215,187,186,618]}
+  };
+  function pointValuePerItem(itemId){
+    const pv=(typeof MU!=='undefined'&&MU.getPointValue)?MU.getPointValue():0;
+    if(!pv)return 0;
+    for(const key in MUSEUM_SETS){
+      const set=MUSEUM_SETS[key];
+      if(set.ids.indexOf(itemId)===-1)continue;
+      // Total buy cost of one full set
+      let setCost=0,thisCost=0;
+      for(const id of set.ids){const bp=(ITEM_DATA[id]||{}).buyPrice||0;setCost+=bp;if(id===itemId)thisCost=bp}
+      if(setCost<=0||thisCost<=0)return 0;
+      return (thisCost/setCost)*set.points*pv; // this item's share of the set's point value
+    }
+    return 0;
+  }
+
   function renderPeriod(){
     const el=$('tvPeriodBrowser');if(!el)return;
     try{const sv=localStorage.getItem('tv_capacity');if(sv&&$('tvCapacity')&&$('tvCapacity').value==='27'&&!window._capRestored){$('tvCapacity').value=sv;window._capRestored=true}}catch(e){}
@@ -528,14 +553,16 @@ const TV=(function(){
     const buys=(HISTORY.buys||[]).filter(b=>b.ts>=start&&b.ts<=end);
     const tb=tripBuysMap(allTrips,buys);
 
-    // Aggregates. Trips are round-trips (outbound + return), so trip COUNT = total legs / 2.
-    // Air time counts ALL legs (both directions are real flight time for Globetrotter).
+    // Aggregates. Each round trip = 1 outbound leg + 1 return leg (dest=Torn/area 1).
+    // Count destinations from OUTBOUND legs only — return legs would double-count and,
+    // having no items, would fall back to the area map and create phantom countries.
     let totalDur=0,totalSpent=0,totalProfit=0;const byCountry={},byItem={};
-    for(const t of allTrips)totalDur+=t.duration||0;
-    for(const t of allTrips){const c=tripCountry(t,tb[t.id]);byCountry[c]=(byCountry[c]||0)+1}
-    // Halve destination counts (round trips) — round so odd counts still show sensibly
-    for(const c in byCountry)byCountry[c]=Math.round(byCountry[c]/2);
-    const roundTrips=Math.round(allTrips.length/2);
+    for(const t of allTrips)totalDur+=t.duration||0; // air time counts BOTH legs
+    // Outbound = destination is not Torn (area 1). Old records (pre-fix) lack `origin`,
+    // so fall back: treat a leg as outbound if it has purchases attached.
+    const outbound=allTrips.filter(t=>t.origin!=null?(t.area!==1):((tb[t.id]||[]).length>0));
+    for(const t of outbound){const c=tripCountry(t,tb[t.id]);if(c&&c!=='Torn')byCountry[c]=(byCountry[c]||0)+1}
+    const roundTrips=outbound.length;
     for(const b of buys){const s=bestSell(b.item,disc);totalProfit+=(s.val-b.costEach)*b.qty;totalSpent+=b.costEach*b.qty;const nm=(ITEM_DATA[b.item]||{}).name||('#'+b.item);byItem[nm]=(byItem[nm]||0)+b.qty}
     const buyingTrips=allTrips.filter(t=>tb[t.id].length>0);
 
@@ -550,11 +577,14 @@ const TV=(function(){
     h+='<button onclick="TV.periodNav(1)" class="btn" '+(offset>=0?'disabled':'')+' style="font-size:0.8rem;padding:6px 14px;background:var(--bg3);color:var(--text);border:1px solid var(--border);opacity:'+(offset>=0?'0.4':'1')+'">Newer ►</button>';
     h+='</div>';
     // Summary stat cards
+    const hrs=totalDur/3600;
+    const perHour=hrs>0?totalProfit/hrs:0;
     h+='<div style="padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">';
     h+='<div class="card"><div class="card-label">Trips</div><div class="card-value">'+roundTrips+'</div></div>';
     h+='<div class="card"><div class="card-label">Time in Air</div><div class="card-value" style="color:var(--cyan)">'+fmtDur(totalDur)+'</div></div>';
     h+='<div class="card"><div class="card-label">Spent Abroad</div><div class="card-value">'+fmt(totalSpent)+'</div></div>';
     h+='<div class="card"><div class="card-label">Est. Profit</div><div class="card-value" style="color:'+(totalProfit>=0?'var(--green)':'var(--red)')+'">'+(totalProfit>=0?'+':'')+fmt(totalProfit)+'</div></div>';
+    h+='<div class="card"><div class="card-label">Profit / Hour</div><div class="card-value" style="color:'+(perHour>=0?'var(--green)':'var(--red)')+'">'+(perHour>=0?'+':'')+fmt(perHour)+'</div><div style="font-size:0.68rem;color:var(--text3)">per hour in air</div></div>';
     h+='</div></div>';
 
     // ===== Destinations + Top Items side by side =====
@@ -601,10 +631,21 @@ const TV=(function(){
       h+='<span style="color:var(--text3);font-size:0.75rem;flex:1">'+dt.toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' GMT · '+fmtDur(t.duration||0)+'</span>';
       h+='<span style="font-size:0.76rem;color:var(--text2)">'+tbb.length+' item'+(tbb.length>1?'s':'')+'</span>';
       h+='<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pcc+';min-width:80px;text-align:right">'+(tp>=0?'+':'')+fmt(tp)+'</span></div>';
-      if(isOpen){h+='<div style="padding:0 8px 10px 30px"><table style="min-width:0"><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Paid/ea</th><th class="r">Sell/ea</th><th class="r">Profit/ea</th><th class="r">Total</th></tr></thead><tbody>';
+      if(isOpen){h+='<div style="padding:0 8px 10px 30px"><table style="min-width:0"><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Paid/ea</th><th class="r">Sell/ea</th><th class="r">Profit/ea</th><th class="r">Total</th><th class="r">Museum Pts</th></tr></thead><tbody>';
+        let ptSum=0,costSum=0;
         for(const b of tbb){const d=ITEM_DATA[b.item]||{name:'#'+b.item};const s=bestSell(b.item,disc);const pe=s.val-b.costEach;const tpp=pe*b.qty;const ppc=pe>0?'var(--green)':'var(--red)';
-          h+='<tr><td style="font-weight:600">'+(d.name||'#'+b.item)+(s.npc?' <span style="color:var(--cyan);font-size:0.6rem">NPC</span>':'')+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+b.qty+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+fmt(b.costEach)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(Math.round(s.val))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:'+ppc+'">'+(pe>=0?'+':'')+fmt(Math.round(pe))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+ppc+'">'+(tpp>=0?'+':'')+fmt(Math.round(tpp))+'</td></tr>';}
-        h+='</tbody></table></div>';}
+          const ptVal=pointValuePerItem(b.item);const ptTotal=ptVal*b.qty;ptSum+=ptTotal;costSum+=b.costEach*b.qty;
+          const better=ptVal>s.val;
+          h+='<tr><td style="font-weight:600">'+(d.name||'#'+b.item)+(s.npc?' <span style="color:var(--cyan);font-size:0.6rem">NPC</span>':'')+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+b.qty+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+fmt(b.costEach)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(Math.round(s.val))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:'+ppc+'">'+(pe>=0?'+':'')+fmt(Math.round(pe))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+ppc+'">'+(tpp>=0?'+':'')+fmt(Math.round(tpp))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:0.76rem;color:'+(better?'var(--purple)':'var(--text3)')+'">'+(ptVal>0?fmt(Math.round(ptTotal))+(better?' 🏛️':''):'—')+'</td></tr>';}
+        h+='</tbody></table>';
+        const tHrs=(t.duration||0)/3600;
+        if(tHrs>0){
+          h+='<div style="padding:6px 2px 0;font-size:0.72rem;color:var(--text3);display:flex;gap:16px;flex-wrap:wrap">';
+          h+='<span>Sell rate: <b style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+fmt(Math.round(tp/tHrs))+'/h</b></span>';
+          if(ptSum>0){const mProfit=ptSum-costSum;h+='<span>Museum rate: <b style="color:var(--purple)">'+fmt(Math.round(mProfit/tHrs))+'/h</b> <span style="opacity:0.7">(pts value − cost)</span></span>'}
+          h+='</div>';
+        }
+        h+='</div>';}
       h+='</div>';
     }
     h+='</div>';
@@ -1871,6 +1912,7 @@ const MU=(function(){
         window._muPointsNW=pointsNW||0;
       }catch(e){}
       POINT_VALUE=mktLow||nwVal||0;window._muMktLow=mktLow;window._muNwVal=nwVal;
+      try{if(POINT_VALUE)localStorage.setItem('mu_point_value',String(POINT_VALUE))}catch(e){}
       // Load item buy/market prices (bulk items call) for set valuation
       try{
         const r=await fetch('https://api.torn.com/v2/torn/items?key='+encodeURIComponent(k));const j=await r.json();
@@ -1963,7 +2005,8 @@ const MU=(function(){
   }
   function toggleSet(name){const real=name.replace(/_/g,' ');if(!window._muOpen)window._muOpen={};window._muOpen[real]=!window._muOpen[real];render()}
 
-  return{refresh,render,toggleSet};
+  function getPointValue(){return POINT_VALUE||(function(){try{return parseFloat(localStorage.getItem('mu_point_value'))||0}catch(e){return 0}})()}
+  return{refresh,render,toggleSet,getPointValue};
 })();
 
 // ====== UNIFIED FETCH ======
