@@ -27,7 +27,10 @@ html{font-size:15px}body{font-family:'Outfit',sans-serif;background:var(--bg);co
 .logo .name{background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .logo .sub{font-size:0.65rem;font-weight:400;color:var(--text3);margin-left:4px}
 /* Page nav */
-.page-nav{display:flex;gap:2px;background:var(--bg3);border-radius:var(--radius-sm);padding:2px;flex-shrink:0}
+.page-nav{display:flex;gap:2px;background:var(--bg3);border-radius:var(--radius-sm);padding:2px;flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.page-nav::-webkit-scrollbar{height:4px}
+.page-nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.page-nav-btn{flex-shrink:0;white-space:nowrap}
 .page-nav-btn{font-family:'Outfit',sans-serif;font-weight:600;font-size:0.78rem;padding:7px 14px;border:none;border-radius:4px;cursor:pointer;background:transparent;color:var(--text3);transition:all 0.2s;white-space:nowrap;display:flex;align-items:center;gap:5px}
 .page-nav-btn:hover{color:var(--text2)}
 .page-nav-btn.active{background:var(--bg);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.3)}
@@ -90,7 +93,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 .ff-bar{width:50px;height:8px;border-radius:4px;display:inline-block;vertical-align:middle;margin-right:6px;position:relative;overflow:hidden}.ff-fill{height:100%;border-radius:4px}
 .progress-track{width:100%;max-width:300px;height:10px;background:var(--bg4);border-radius:5px;overflow:hidden;margin-top:8px}.progress-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--cyan),var(--green));transition:width 0.5s}
 /* Responsive */
-@media(max-width:768px){.header-inner{gap:8px;flex-direction:column;align-items:stretch}.api-bar{width:100%}.api-input.ffs-input{max-width:none}.page-nav{justify-content:center}}
+@media(max-width:768px){.header-inner{gap:8px;flex-direction:column;align-items:stretch}.api-bar{width:100%}.api-input.ffs-input{max-width:none}.page-nav{justify-content:flex-start}}
 @media(max-width:640px){
   html{font-size:13px}
   .header{padding:8px 10px}
@@ -444,6 +447,8 @@ const TV=(function(){
     // Sync the log first (pulls latest trips), then refresh the display
     await syncNow();
     await refresh();
+    // Also refresh Museum so its point values / set data stay in sync with travel
+    try{if(typeof MU!=='undefined')MU.refresh()}catch(e){}
   }
   async function syncNow(){
     const _k=$('apiKey').value.trim();if(!_k){toast('⚠️ Enter your API key first');return}
@@ -1209,16 +1214,26 @@ const ST=(function(){
   }
   function togglePos(acr){if(!window._openPos)window._openPos={};window._openPos[acr]=!window._openPos[acr];renderPortfolio()}
   function renderTx(){
-    if(!ATX.length)return;let h='<div class="tw" style="margin-bottom:20px"><div class="tt">All Transactions <span class="badge">'+ATX.length+' buys</span></div><table><thead><tr><th>Date</th><th>Stock</th><th class="r">Shares</th><th class="r">Buy Price</th><th class="r">Current</th><th class="r">Invested</th><th class="r">Value Now</th><th class="r">P/L</th><th class="r">Days</th></tr></thead><tbody>';
-    for(const t of ATX){const pc=t.pl>=0?'var(--green)':'var(--red)';h+='<tr><td style="font-size:0.78rem">'+d2f(t.bd)+'</td><td><span style="font-family:JetBrains Mono,monospace;font-weight:600">'+t.acr+'</span></td><td class="r">'+fN(t.shares)+'</td><td class="r">'+fmt(t.bp,2)+'</td><td class="r">'+fmt(t.cp,2)+'</td><td class="r">'+fmt(t.inv)+'</td><td class="r">'+fmt(t.cv)+'</td><td class="r"><span style="color:'+pc+';font-family:JetBrains Mono,monospace;font-size:0.8rem">'+fmt(t.pl)+'</span><br><span class="chip '+cC(t.pp)+'">'+fP(t.pp)+'</span></td><td class="r">'+t.dh+'d</td></tr>'}h+='</tbody></table></div>';
+    if(!ATX.length)return;let h='<div class="tw" style="margin-bottom:20px"><div class="tt">All Transactions <span class="badge">'+ATX.length+' buys</span></div><div style="padding:6px 14px;font-size:0.72rem;color:var(--text3)">Target = mean-reversion exit · Cut = ATR-based stop loss. Both from the backtested signal engine (current levels, not fixed at buy).</div><table><thead><tr><th>Date</th><th>Stock</th><th class="r">Shares</th><th class="r">Buy Price</th><th class="r">Current</th><th class="r">P/L</th><th class="r">🎯 Target</th><th class="r">✂ Cut</th><th class="r">Days</th></tr></thead><tbody>';
+    for(const t of ATX){const pc=t.pl>=0?'var(--green)':'var(--red)';
+      const sc=calcScore(t.acr);
+      const tgt=sc?'<span style="color:var(--green)">'+fmt(sc.target,2)+'</span>':'—';
+      const cut=sc?'<span style="color:var(--red)">'+fmt(sc.stop,2)+'</span>':'—';
+      // Has the current price already hit target or stop? flag it
+      let flag='';if(sc){if(t.cp>=sc.target)flag=' <span style="color:var(--green);font-size:0.6rem">✓HIT</span>';else if(t.cp<=sc.stop)flag=' <span style="color:var(--red);font-size:0.6rem">⚠STOP</span>'}
+      h+='<tr><td style="font-size:0.78rem">'+d2f(t.bd)+'</td><td><span style="font-family:JetBrains Mono,monospace;font-weight:600">'+t.acr+'</span>'+flag+'</td><td class="r">'+fN(t.shares)+'</td><td class="r">'+fmt(t.bp,2)+'</td><td class="r">'+fmt(t.cp,2)+'</td><td class="r"><span style="color:'+pc+';font-family:JetBrains Mono,monospace;font-size:0.8rem">'+fmt(t.pl)+'</span><br><span class="chip '+cC(t.pp)+'">'+fP(t.pp)+'</span></td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:0.78rem">'+tgt+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:0.78rem">'+cut+'</td><td class="r">'+t.dh+'d</td></tr>'}h+='</tbody></table></div>';
     h+='<div class="tw"><div class="tt">Summary by Stock <span class="badge">'+PF.length+'</span></div><table><thead><tr><th>Stock</th><th class="r"># Buys</th><th class="r">Total</th><th class="r">Avg Buy</th><th class="r">Invested</th><th class="r">Current Val</th><th class="r">P/L</th><th class="r">First Buy</th><th class="r">Days</th></tr></thead><tbody>';
     for(const p of PF){const tx=p.txs,fb=Math.min(...tx.map(t=>t.bd)),dh=Math.floor((Date.now()/1000-fb)/86400),pc=p.pl>=0?'var(--green)':'var(--red)';h+='<tr><td><div class="sn"><span class="a">'+p.acr+'</span><span class="n">'+p.name+'</span></div></td><td class="r">'+tx.length+'</td><td class="r">'+fN(p.ts)+'</td><td class="r">'+fmt(p.ap,2)+'</td><td class="r">'+fmt(p.inv)+'</td><td class="r">'+fmt(p.cv)+'</td><td class="r"><span style="color:'+pc+';font-family:JetBrains Mono,monospace">'+fmt(p.pl)+'</span> <span class="chip '+cC(p.pp)+'">'+fP(p.pp)+'</span></td><td class="r" style="font-size:0.78rem">'+d2s(fb)+'</td><td class="r">'+dh+'d</td></tr>'}
     h+='</tbody></table></div>';$('txContent').innerHTML=h;
   }
   function renderMarket(){
     const stocks=Object.values(MKT).sort((a,b)=>a.stock_id-b.stock_id);if(!stocks.length)return;const held=new Set(Object.keys(USR));
-    let h='<div class="tw"><div class="tt">Torn Stock Exchange <span class="badge">'+stocks.length+' stocks</span></div><table><thead><tr><th>ID</th><th>Stock</th><th class="r">Price</th><th class="r">BB Req</th><th class="r">BB Cost</th><th>Benefit</th><th class="r">Freq</th><th class="r">Mkt Cap</th><th>Held</th></tr></thead><tbody>';
-    for(const s of stocks){const hl=held.has(String(s.stock_id)),ben=s.benefit||{},breq=ben.requirement||0;h+='<tr'+(hl?' style="background:rgba(34,197,94,0.04)"':'')+'><td style="font-family:JetBrains Mono,monospace">'+s.stock_id+'</td><td><div class="sn"><span class="a">'+s.acronym+'</span><span class="n">'+s.name+'</span></div></td><td class="r">'+fmt(s.current_price,2)+'</td><td class="r">'+fN(breq)+'</td><td class="r">'+fmt(s.current_price*breq)+'</td><td style="font-size:0.78rem;color:var(--text2);max-width:200px;white-space:normal">'+(ben.description||'N/A')+'</td><td class="r">'+(ben.frequency||'—')+'d</td><td class="r">'+fmt(s.market_cap)+'</td><td>'+(hl?'<span class="chip cg">✓</span>':'')+'</td></tr>'}
+    let h='<div class="tw"><div class="tt">Torn Stock Exchange <span class="badge">'+stocks.length+' stocks</span></div><table><thead><tr><th>ID</th><th>Stock</th><th class="r">Price</th><th class="c">Signal</th><th class="r">Score</th><th class="r">BB Req</th><th class="r">BB Cost</th><th>Benefit</th><th class="r">Freq</th><th>Held</th></tr></thead><tbody>';
+    for(const s of stocks){const hl=held.has(String(s.stock_id)),ben=s.benefit||{},breq=ben.requirement||0;
+      const sc=calcScore(s.acronym);
+      const sigCell=sc?'<span class="rb" style="background:rgba(0,0,0,0.2);color:'+sc.color+'">'+sc.label+'</span>':'<span style="color:var(--text3)">—</span>';
+      const scoreCell=sc?'<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+sc.color+'">'+sc.score+'</span>':'—';
+      h+='<tr'+(hl?' style="background:rgba(34,197,94,0.04)"':'')+'><td style="font-family:JetBrains Mono,monospace">'+s.stock_id+'</td><td><div class="sn"><span class="a">'+s.acronym+'</span><span class="n">'+s.name+'</span></div></td><td class="r">'+fmt(s.current_price,2)+'</td><td class="c">'+sigCell+'</td><td class="r">'+scoreCell+'</td><td class="r">'+fN(breq)+'</td><td class="r">'+fmt(s.current_price*breq)+'</td><td style="font-size:0.78rem;color:var(--text2);max-width:180px;white-space:normal">'+(ben.description||'N/A')+'</td><td class="r">'+(ben.frequency||'—')+'d</td><td>'+(hl?'<span class="chip cg">✓</span>':'')+'</td></tr>'}
     h+='</tbody></table></div>';$('marketContent').innerHTML=h;
   }
   function renderTrends(){
@@ -2057,6 +2072,7 @@ async function fetchAllData(){
     setTimeout(()=>{try{if(typeof DB!=='undefined')DB.refresh()}catch(e){}},600);
     setTimeout(()=>{try{if(typeof ST!=='undefined')ST.fetchAll()}catch(e){}},2000);
     setTimeout(()=>{try{if(typeof TV!=='undefined')TV.refresh()}catch(e){}},4500);
+    setTimeout(()=>{try{if(typeof MU!=='undefined')MU.refresh()}catch(e){}},7000);
   })();
 })();
 </script>
