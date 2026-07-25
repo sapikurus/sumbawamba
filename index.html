@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v9</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v11</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -706,9 +706,13 @@ const TV=(function(){
 
   <div class="tw"><div class="tt">🛒 Add Items</div><div style="padding:14px">
     <div style="margin-bottom:14px">
-      <label style="font-size:0.78rem;color:var(--text3);display:block;margin-bottom:6px">Paste a trade list (e.g. "You sent 261x Xanax to ...") or "qty item" / "item qty" per line:</label>
-      <textarea id="trPaste" placeholder="261x Xanax&#10;84 Whale Meat&#10;56x Tiger Bone Powder" style="width:100%;min-height:90px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:JetBrains Mono,monospace;font-size:0.82rem;resize:vertical;box-sizing:border-box"></textarea>
-      <button class="btn btn-primary" onclick="TR.parsePaste()" style="margin-top:8px;padding:6px 14px;font-size:0.78rem"><span>➕ Parse & Add</span></button>
+      <label style="font-size:0.78rem;color:var(--text3);display:block;margin-bottom:6px">Paste a trade list, or upload a screenshot of your item log:</label>
+      <textarea id="trPaste" placeholder="* You were sent 261x Xanax from [Bijig]...&#10;22:10:40&#10;24/07/26&#10;* You were sent 84x Whale Meat from [Bijig]...&#10;&#10;(Paste the whole log — timestamps &amp; links are ignored automatically)" style="width:100%;min-height:90px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:JetBrains Mono,monospace;font-size:0.82rem;resize:vertical;box-sizing:border-box"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" onclick="TR.parsePaste()" style="padding:6px 14px;font-size:0.78rem"><span>➕ Parse & Add</span></button>
+        <label class="btn" style="padding:6px 14px;font-size:0.78rem;background:var(--bg3);color:var(--text);border:1px solid var(--border);cursor:pointer;margin:0"><span>📷 Upload Screenshot</span><input type="file" accept="image/*" onchange="TR.ocrImage(this.files[0])" style="display:none"></label>
+        <span id="trOcrStatus" style="font-size:0.72rem;color:var(--text3)"></span>
+      </div>
     </div>
     <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
       <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Item name</label><input id="trItemName" list="trItemList" placeholder="Xanax" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:180px"><datalist id="trItemList"></datalist></div>
@@ -724,10 +728,15 @@ const TV=(function(){
   <div class="tw"><div class="tt">🧾 Receipt</div><div style="padding:14px">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
       <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Buyer name</label><input id="trBuyer" placeholder="Buyer's name" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:220px" oninput="TR.render()"></div>
-      <button class="btn btn-primary" onclick="TR.copyReceipt()" style="padding:7px 14px;font-size:0.78rem"><span>📋 Copy Receipt</span></button>
+      <button class="btn btn-primary" onclick="TR.generateHTML()" style="padding:7px 14px;font-size:0.78rem"><span>🧾 Generate HTML Receipt</span></button>
+      <button class="btn" onclick="TR.copyReceipt()" style="padding:7px 14px;font-size:0.78rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>📋 Copy Text</span></button>
     </div>
     <div id="trReceipt" style="background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:16px;font-family:JetBrains Mono,monospace;font-size:0.8rem;white-space:pre-wrap;color:var(--text2);min-height:60px">Add items to generate a receipt.</div>
   </div></div>
+
+  <div class="tw"><div class="tt">📁 Recent Receipts <span class="badge" id="trHistCount">0</span> <span style="margin-left:auto;font-size:0.7rem;color:var(--text3);font-weight:400">last 5 kept</span></div>
+    <div id="trHistory"><div class="empty" style="padding:20px"><p style="color:var(--text3);font-size:0.8rem">Generated receipts appear here (most recent 5).</p></div></div>
+  </div>
 </div>
 
 <div class="page" id="page-energy">
@@ -2098,24 +2107,53 @@ const TR=(function(){
     LINES.push({id:it?it.id:null,name:it?it.name:name,qty:qty||1,market,pct:defaultPct,finalPrice,found:!!it});
   }
 
+  // OCR a screenshot -> text -> parse. Loads Tesseract.js from CDN on first use.
+  function loadTesseract(){
+    return new Promise((resolve,reject)=>{
+      if(window.Tesseract)return resolve(window.Tesseract);
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      s.onload=()=>resolve(window.Tesseract);
+      s.onerror=()=>reject(new Error('Failed to load OCR library'));
+      document.head.appendChild(s);
+    });
+  }
+  async function ocrImage(file){
+    if(!file)return;
+    if(!await ensureItems())return;
+    const st=$('trOcrStatus');st.textContent='📷 Loading OCR…';
+    try{
+      const T=await loadTesseract();
+      st.textContent='🔍 Reading image… (may take ~10s)';
+      const{data}=await T.recognize(file,'eng',{logger:m=>{if(m.status==='recognizing text')st.textContent='🔍 Reading… '+Math.round(m.progress*100)+'%'}});
+      const text=data.text||'';
+      // Feed OCR text through the same parser
+      const re=/(\d[\d,]*)\s*x\s+(.+?)(?=\s+(?:from|to)\b|\s*[\[\(]|$)/gim;
+      let m,added=0;
+      while((m=re.exec(text))!==null){
+        const qty=parseInt(m[1].replace(/,/g,''));const name=m[2].trim();
+        if(name&&qty>0){addLine(name,qty);added++}
+      }
+      if(added){st.textContent='✓ Found '+added+' item'+(added===1?'':'s')+' from image';render()}
+      else{st.textContent='⚠ No items detected. Try pasting the text instead.';$('trPaste').value=text}
+    }catch(e){st.textContent='⚠ OCR failed: '+e.message}
+  }
+
   async function parsePaste(){
     if(!await ensureItems())return;
     const txt=$('trPaste').value;if(!txt.trim())return;
-    const lines=txt.split('\n').map(l=>l.trim()).filter(Boolean);
-    let added=0;
-    for(let ln of lines){
-      // Strip "You sent" ... "to <name>" wrappers
-      ln=ln.replace(/^you sent/i,'').replace(/to\s+\w+\s*$/i,'').trim();
-      // Patterns: "261x Xanax", "261 Xanax", "Xanax x261", "Xanax 261"
-      let m=ln.match(/^(\d[\d,]*)\s*x?\s+(.+)$/i)||ln.match(/^(.+?)\s+x?(\d[\d,]*)$/i);
-      if(!m)continue;
-      let qty,name;
-      if(/^\d/.test(m[1])){qty=parseInt(m[1].replace(/,/g,''));name=m[2]}
-      else{name=m[1];qty=parseInt(m[2].replace(/,/g,''))}
-      if(name&&qty>0){addLine(name.replace(/\s+x$/i,'').trim(),qty);added++}
+    // Find every "<qty>x <item>" pattern anywhere in the text, regardless of surrounding
+    // wrapper ("* You were sent 261x Xanax from [Bijig](...)"). Item name runs until
+    // " from"/" to"/a bracket/paren/end-of-line. Timestamps & links are ignored.
+    const re=/(\d[\d,]*)\s*x\s+(.+?)(?=\s+(?:from|to)\b|\s*[\[\(]|$)/gim;
+    let m,added=0;
+    while((m=re.exec(txt))!==null){
+      const qty=parseInt(m[1].replace(/,/g,''));
+      const name=m[2].trim();
+      if(name&&qty>0){addLine(name,qty);added++}
     }
     $('trPaste').value='';
-    $('trStatusText').textContent='Added '+added+' item'+(added===1?'':'s');
+    $('trStatusText').textContent=added?('Added '+added+' item'+(added===1?'':'s')):'No items found — check the format';
     render();
   }
 
@@ -2186,7 +2224,74 @@ const TR=(function(){
   }
   function fallbackCopy(txt){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');$('trStatusText').textContent='✓ Receipt copied!'}catch(e){}document.body.removeChild(ta)}
 
-  return{parsePaste,addManual,updateLine,removeLine,clearAll,setDefaultPct,copyReceipt,render,ensureItems};
+  // Build a styled, standalone HTML receipt document
+  function buildHTML(buyer,lines,grand,dateStr){
+    const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    let rows='';
+    for(const l of lines){const lt=l.qty*l.finalPrice;
+      rows+='<tr><td class="it">'+esc(l.name)+'</td><td class="q">'+l.qty.toLocaleString()+'</td><td class="p">$'+l.finalPrice.toLocaleString()+'</td><td class="t">$'+lt.toLocaleString()+'</td></tr>';}
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sumbawamba Receipt — '+esc(buyer)+'</title>'+
+    '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0d1220;color:#e8edf5;padding:24px;display:flex;justify-content:center}'+
+    '.r{background:linear-gradient(160deg,#141c30,#0f1626);border:1px solid #2a3550;border-radius:16px;max-width:460px;width:100%;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.5)}'+
+    '.hd{background:linear-gradient(135deg,#7c3aed,#22d3ee);padding:22px 26px;text-align:center}.hd h1{font-size:1.4rem;color:#fff;letter-spacing:1px}.hd .s{color:rgba(255,255,255,0.85);font-size:0.75rem;margin-top:2px}'+
+    '.meta{padding:16px 26px;font-size:0.8rem;color:#8b98ae;border-bottom:1px dashed #2a3550;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}.meta b{color:#e8edf5}'+
+    'table{width:100%;border-collapse:collapse}th{font-size:0.66rem;text-transform:uppercase;letter-spacing:0.6px;color:#8b98ae;text-align:right;padding:12px 10px;border-bottom:1px solid #2a3550;font-weight:600}th:first-child{text-align:left;padding-left:26px}th:last-child{padding-right:26px}'+
+    'td{padding:10px;font-size:0.86rem;border-bottom:1px solid rgba(42,53,80,0.4);text-align:right;font-variant-numeric:tabular-nums}td.it{text-align:left;padding-left:26px;font-weight:600;color:#fff}td:last-child{padding-right:26px;font-weight:600}td.t{color:#34d058}'+
+    '.tot{display:flex;justify-content:space-between;align-items:center;padding:18px 26px;background:rgba(124,58,237,0.08)}.tot .l{font-size:0.9rem;color:#b8c4d6;letter-spacing:1px}.tot .v{font-size:1.5rem;font-weight:700;color:#34d058;font-variant-numeric:tabular-nums}'+
+    '.ft{text-align:center;padding:20px 26px 26px;color:#8b98ae;font-size:0.82rem;line-height:1.5}.ft b{color:#22d3ee}'+
+    '@media print{body{background:#fff;color:#000}.r{border:1px solid #ccc;box-shadow:none}}</style></head><body>'+
+    '<div class="r"><div class="hd"><h1>SUMBAWAMBA SHOP</h1><div class="s">Official Trade Receipt</div></div>'+
+    '<div class="meta"><span>Buyer: <b>'+esc(buyer)+'</b></span><span>'+esc(dateStr)+'</span></div>'+
+    '<table><thead><tr><th>Item</th><th>Qty</th><th>Price/ea</th><th>Total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<div class="tot"><span class="l">GRAND TOTAL</span><span class="v">$'+grand.toLocaleString()+'</span></div>'+
+    '<div class="ft">Thank you for trading at<br><b>Sumbawamba shop!</b></div></div></body></html>';
+  }
+
+  // Ring buffer of last 5 receipts in localStorage
+  function loadHist(){try{return JSON.parse(localStorage.getItem('tr_receipts')||'[]')}catch(e){return[]}}
+  function saveHist(h){try{localStorage.setItem('tr_receipts',JSON.stringify(h))}catch(e){}}
+
+  function generateHTML(){
+    if(!LINES.length){$('trStatusText').textContent='Add items first';return}
+    const buyer=$('trBuyer').value.trim()||'Guest';
+    const grand=LINES.reduce((s,l)=>s+l.qty*l.finalPrice,0);
+    const now=new Date();const dateStr=now.toLocaleDateString()+' '+now.toLocaleTimeString();
+    const html=buildHTML(buyer,LINES.slice(),grand,dateStr);
+    // Push to history, keep last 5 (drop oldest)
+    let hist=loadHist();
+    hist.unshift({buyer,grand,date:dateStr,ts:now.getTime(),items:LINES.length,html});
+    if(hist.length>5)hist=hist.slice(0,5); // keep newest 5, oldest auto-deleted
+    saveHist(hist);
+    renderHistory();
+    openReceipt(html);
+    $('trStatusText').textContent='✓ HTML receipt generated (opened in new tab)';
+  }
+
+  function openReceipt(html){
+    const blob=new Blob([html],{type:'text/html'});
+    const url=URL.createObjectURL(blob);
+    window.open(url,'_blank');
+    // Revoke shortly after so the temp URL doesn't linger
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }
+  function openHist(i){const h=loadHist();if(h[i])openReceipt(h[i].html)}
+  function downloadHist(i){const h=loadHist();if(!h[i])return;const blob=new Blob([h[i].html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='sumbawamba-receipt-'+(h[i].buyer||'guest').replace(/[^a-z0-9]/gi,'_')+'.html';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+  function delHist(i){let h=loadHist();h.splice(i,1);saveHist(h);renderHistory()}
+
+  function renderHistory(){
+    const hist=loadHist();
+    $('trHistCount').textContent=hist.length;
+    if(!hist.length){$('trHistory').innerHTML='<div class="empty" style="padding:20px"><p style="color:var(--text3);font-size:0.8rem">Generated receipts appear here (most recent 5).</p></div>';return}
+    let h='<table><thead><tr><th>Buyer</th><th class="r">Items</th><th class="r">Total</th><th>Date</th><th></th></tr></thead><tbody>';
+    hist.forEach((rc,i)=>{
+      h+='<tr><td style="font-weight:600">'+rc.buyer+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+rc.items+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--green)">'+fmt(rc.grand)+'</td><td style="font-size:0.74rem;color:var(--text3)">'+rc.date+'</td>';
+      h+='<td class="r" style="white-space:nowrap"><button onclick="TR.openHist('+i+')" title="Open" style="background:none;border:none;color:var(--cyan);cursor:pointer;font-size:0.95rem;padding:2px 5px">↗</button><button onclick="TR.downloadHist('+i+')" title="Download" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:0.95rem;padding:2px 5px">⬇</button><button onclick="TR.delHist('+i+')" title="Delete" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.9rem;padding:2px 5px">✕</button></td></tr>';
+    });
+    h+='</tbody></table>';
+    $('trHistory').innerHTML=h;
+  }
+
+  return{parsePaste,addManual,updateLine,removeLine,clearAll,setDefaultPct,copyReceipt,render,ensureItems,generateHTML,openHist,downloadHist,delHist,renderHistory,ocrImage};
 })();
 
 // ====== UNIFIED FETCH ======
@@ -2227,6 +2332,7 @@ async function fetchAllData(){
     navigator.serviceWorker.register(swUrl,{scope:'/'}).catch(()=>{});
   }
   if(window.EN){EN.init();const m=$('enMult');if(m)m.addEventListener('change',()=>EN.renderDrinks())}
+  try{if(typeof TR!=='undefined')TR.renderHistory()}catch(e){}
 
   // Auto-load on open: show cached dashboard instantly, then quietly refresh light
   // data (stocks + travel + dashboard). Bounty stays manual (heavier call volume).
