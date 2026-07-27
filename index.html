@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v11</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v12</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -528,8 +528,10 @@ const TV=(function(){
   function bestSell(id,disc){const d=ITEM_DATA[id]||{};const p=PRICES[id]||{};const mkt=(p.low||p.avg||d.marketRef||0);const mktNet=mkt*(1-disc);const npc=d.npcSell||0;return npc>mktNet&&npc>0?{val:npc,npc:true}:{val:mktNet,npc:false}}
 
   // ===== MUSEUM POINT VALUATION =====
-  // For items in a museum set, an item's point worth = (its buy price / total set buy cost)
-  // x set points x $/point. Uses the point value from the Museum tab if available.
+  // An item's point worth = (its MARKET value / total set market value) x set points x $/point.
+  // MV-weighting (not buy-cost) is correct: it reflects how scarce/valuable an item actually
+  // is. A cheap-on-market item contributes little point value even if pricey to buy abroad,
+  // so it correctly ranks LOW for flying (you'd just buy it off the market instead).
   const MUSEUM_SETS={
     flower:{points:10,ids:[260,264,282,277,276,271,272,263,267,385,617]},
     plushie:{points:10,ids:[258,281,274,269,273,261,266,268,384,215,187,186,618]}
@@ -540,11 +542,11 @@ const TV=(function(){
     for(const key in MUSEUM_SETS){
       const set=MUSEUM_SETS[key];
       if(set.ids.indexOf(itemId)===-1)continue;
-      // Total buy cost of one full set
-      let setCost=0,thisCost=0;
-      for(const id of set.ids){const bp=(ITEM_DATA[id]||{}).buyPrice||0;setCost+=bp;if(id===itemId)thisCost=bp}
-      if(setCost<=0||thisCost<=0)return 0;
-      return (thisCost/setCost)*set.points*pv; // this item's share of the set's point value
+      // Total MARKET value of one full set, and this item's market value
+      let setMV=0,thisMV=0;
+      for(const id of set.ids){const mv=(ITEM_DATA[id]||{}).marketRef||0;setMV+=mv;if(id===itemId)thisMV=mv}
+      if(setMV<=0||thisMV<=0)return 0;
+      return (thisMV/setMV)*set.points*pv; // this item's MV-share of the set's point value
     }
     return 0;
   }
