@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v14</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v15</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -2071,12 +2071,14 @@ const MU=(function(){
   }
 
   // ===== SET BUILDER: how to acquire N sets — fly (NPC) vs buy on market, per item =====
-  // You set a target number of sets. For each component the shortfall (target - what you
-  // already own) can be split between flying (NPC buy price) and buying on the market.
-  // Shows total cost of your plan vs the all-fly baseline, plus the point payout.
+  // COST MODEL: a full set at NPC prices is the reference (e.g. flower set = $25,500).
+  // For N sets the baseline is N x setNpcCost. Every item counts at its NPC price —
+  // whether you already hold it or fly for it — and anything bought on the MARKET costs
+  // the higher market price. So buying on market pushes cost-per-set ABOVE the baseline.
+  //   total cost = SUM over items of [ (target - marketQty) x npcPrice + marketQty x mktPrice ]
   let builderSet='flower';
   let builderTarget=null;            // target set count (null = auto from max held)
-  let builderMktQty={};              // itemId -> qty to buy on market (rest is flown)
+  let builderMktQty={};              // itemId -> qty bought on market (rest: held or flown)
   const BUILDER_SETS={
     flower:{name:'Exotic Flower Set',points:10,ids:[260,264,282,277,276,271,272,263,267,385,617]},
     plushie:{name:'Plushie Set',points:10,ids:[258,281,274,269,273,261,266,268,384,215,187,186,618]},
@@ -2087,53 +2089,56 @@ const MU=(function(){
     return '#'+id;
   }
   function heldOf(id){return INV[id]||0}
+  // NPC reference price; falls back to market when an item isn't shop-bought (arrowheads)
+  function npcRef(id){const p=ITEM_PRICES[id]||{};return p.buy>0?p.buy:(p.market||0)}
 
   function renderBuilder(){
     const pv=POINT_VALUE;const set=BUILDER_SETS[builderSet];
     const held={};let maxHeld=0;
     for(const id of set.ids){const hq=heldOf(id);held[id]=hq;if(hq>maxHeld)maxHeld=hq}
-    // Default target: the highest component count you hold (i.e. level everything up to it)
     if(builderTarget==null)builderTarget=maxHeld||1;
     const target=Math.max(0,parseInt(builderTarget)||0);
+    // Reference: cost of ONE full set entirely at NPC prices
+    const setNpcCost=set.ids.reduce((s,id)=>s+npcRef(id),0);
 
     let h='<div class="tw"><div class="tt">🧮 Set Builder — How to get N sets</div>';
-    h+='<div style="padding:8px 14px;font-size:0.76rem;color:var(--text3)">Set a target number of sets. For each item, the shortfall is split between <b style="color:var(--cyan)">✈ flying</b> (NPC price) and <b style="color:var(--amber)">🛒 market</b> — drag each slider to choose. Compares your plan\'s cost against flying for everything.</div>';
-    // Set selector + target input
+    h+='<div style="padding:8px 14px;font-size:0.76rem;color:var(--text3)">One full set at NPC prices = <b style="color:var(--cyan)">'+fmt(setNpcCost)+'</b> — that\'s the reference. Enter how many of each item you\'ll buy on the <b style="color:var(--amber)">market</b> (the rest are flown or already held); cost-per-set rises above the reference as you buy more on market.</div>';
     h+='<div style="padding:4px 14px 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">';
     for(const key in BUILDER_SETS)h+='<button onclick="MU.builderPick(\''+key+'\')" class="btn" style="font-size:0.74rem;padding:5px 12px;background:'+(builderSet===key?'var(--accent)':'var(--bg3)')+';color:'+(builderSet===key?'#fff':'var(--text)')+';border:1px solid var(--border)">'+BUILDER_SETS[key].name+'</button>';
-    h+='<span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:0.76rem;color:var(--text3)">Target sets: <input id="muTarget" type="number" min="0" value="'+target+'" onchange="MU.builderTargetSet(this.value)" style="width:90px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 8px;color:var(--text);font-family:JetBrains Mono,monospace;text-align:right"></span>';
+    h+='<span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:0.76rem;color:var(--text3)">Target sets: <input type="number" min="0" value="'+target+'" onchange="MU.builderTargetSet(this.value)" style="width:100px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 8px;color:var(--text);font-family:JetBrains Mono,monospace;text-align:right"></span>';
     h+='</div>';
 
-    // Per-item rows
-    let planCost=0,allFlyCost=0,allMktCost=0,totalFlyQty=0,totalMktQty=0,anyNoFly=false;
+    // Table header
+    h+='<div style="padding:0 14px 4px;display:grid;grid-template-columns:1.6fr 0.7fr 0.7fr 0.9fr 0.9fr 1fr;gap:6px;font-size:0.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);padding-bottom:6px">';
+    h+='<span>Item</span><span style="text-align:right">Have</span><span style="text-align:right">Need</span><span style="text-align:right">✈ Fly</span><span style="text-align:right">🛒 Market</span><span style="text-align:right">Cost</span></div>';
+
+    let planCost=0,baselineCost=0,totalFly=0,totalMkt=0,heldValue=0,anyNoFly=false;
     h+='<div style="padding:0 14px">';
     for(const id of set.ids){
-      const p=ITEM_PRICES[id]||{};const buy=p.buy||0,mkt=p.market||0;
-      const have=held[id];const need=Math.max(0,target-have);
+      const p=ITEM_PRICES[id]||{};const buy=p.buy||0,mkt=p.market||0;const ref=npcRef(id);
+      const have=held[id];const heldUsed=Math.min(have,target);
+      const need=Math.max(0,target-have);
       const canFly=buy>0;if(!canFly&&need>0)anyNoFly=true;
-      // clamp stored market qty to need; default: all fly if flying possible & cheaper, else all market
       let mq=builderMktQty[id];
-      if(mq==null)mq=(canFly&&buy<=(mkt||Infinity))?0:need;
-      mq=Math.min(Math.max(0,mq),need);
+      if(mq==null)mq=canFly?0:need;           // default: fly everything possible
+      mq=Math.min(Math.max(0,parseInt(mq)||0),need);
       const fq=need-mq;
-      const rowCost=fq*buy+mq*mkt;
-      planCost+=rowCost;allFlyCost+=canFly?need*buy:need*mkt;allMktCost+=need*mkt;
-      totalFlyQty+=fq;totalMktQty+=mq;
-      h+='<div style="padding:8px 0;border-bottom:1px solid rgba(42,53,80,0.4)">';
-      h+='<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px">';
-      h+='<span style="font-size:0.82rem;font-weight:600">'+flagFor(id)+itemName(id)+'</span>';
-      h+='<span style="font-size:0.72rem;color:var(--text3)">have '+fN(have)+'</span>';
-      if(need>0)h+='<span style="font-size:0.72rem;color:var(--amber)">need '+fN(need)+' more</span>';
-      else h+='<span style="font-size:0.72rem;color:var(--green)">✓ enough</span>';
-      h+='<span style="margin-left:auto;font-family:JetBrains Mono,monospace;font-size:0.78rem;font-weight:600">'+(rowCost>0?fmt(rowCost):'—')+'</span>';
-      h+='</div>';
+      // Cost: held + flown at NPC reference, market qty at market price
+      const rowCost=(heldUsed+fq)*ref+mq*mkt;
+      const rowBase=target*ref;
+      planCost+=rowCost;baselineCost+=rowBase;totalFly+=fq;totalMkt+=mq;heldValue+=heldUsed*ref;
+      const over=rowCost>rowBase;
+      h+='<div style="display:grid;grid-template-columns:1.6fr 0.7fr 0.7fr 0.9fr 0.9fr 1fr;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(42,53,80,0.35);font-size:0.78rem">';
+      h+='<span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+flagFor(id)+itemName(id)+'</span>';
+      h+='<span style="text-align:right;font-family:JetBrains Mono,monospace;color:var(--text3)">'+fN(have)+'</span>';
+      h+='<span style="text-align:right;font-family:JetBrains Mono,monospace;color:'+(need>0?'var(--amber)':'var(--green)')+'">'+(need>0?fN(need):'✓')+'</span>';
       if(need>0){
-        h+='<div style="display:flex;align-items:center;gap:10px">';
-        h+='<span style="font-size:0.7rem;color:var(--cyan);white-space:nowrap">✈ '+fN(fq)+(buy>0?' @'+fmt(buy):' N/A')+'</span>';
-        h+='<input type="range" min="0" max="'+need+'" value="'+mq+'" oninput="MU.builderSplit('+id+',this.value)" style="flex:1;accent-color:var(--amber);min-width:80px"'+(canFly?'':' disabled')+'>';
-        h+='<span style="font-size:0.7rem;color:var(--amber);white-space:nowrap">🛒 '+fN(mq)+(mkt>0?' @'+fmt(mkt):' N/A')+'</span>';
-        h+='</div>';
+        h+='<input type="number" min="0" max="'+need+'" value="'+fq+'" onchange="MU.builderFly('+id+',this.value)" '+(canFly?'':'disabled')+' style="width:100%;background:var(--bg3);border:1px solid rgba(34,211,238,0.3);border-radius:4px;padding:3px 5px;color:var(--cyan);font-family:JetBrains Mono,monospace;font-size:0.74rem;text-align:right;opacity:'+(canFly?'1':'0.4')+'">';
+        h+='<input type="number" min="0" max="'+need+'" value="'+mq+'" onchange="MU.builderMarket('+id+',this.value)" style="width:100%;background:var(--bg3);border:1px solid rgba(251,175,36,0.3);border-radius:4px;padding:3px 5px;color:var(--amber);font-family:JetBrains Mono,monospace;font-size:0.74rem;text-align:right">';
+      }else{
+        h+='<span style="text-align:right;color:var(--text3)">—</span><span style="text-align:right;color:var(--text3)">—</span>';
       }
+      h+='<span style="text-align:right;font-family:JetBrains Mono,monospace;font-weight:600;color:'+(over?'var(--amber)':'var(--text)')+'">'+fmt(Math.round(rowCost))+'</span>';
       h+='</div>';
     }
     h+='</div>';
@@ -2141,35 +2146,42 @@ const MU=(function(){
     // Summary
     const totalPointValue=target*set.points*pv;
     const planNet=totalPointValue-planCost;
-    const flyNet=totalPointValue-allFlyCost;
-    const mktNet=totalPointValue-allMktCost;
-    h+='<div style="padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">';
-    h+='<div class="card"><div class="card-label">Target Sets</div><div class="card-value">'+fN(target)+'</div><div style="font-size:0.68rem;color:var(--text3)">'+fN(target*set.points)+' points total</div></div>';
+    const perSet=target>0?planCost/target:0;
+    const baseNet=totalPointValue-baselineCost;
+    h+='<div style="padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px">';
+    h+='<div class="card"><div class="card-label">Target Sets</div><div class="card-value">'+fN(target)+'</div><div style="font-size:0.68rem;color:var(--text3)">'+fN(target*set.points)+' pts</div></div>';
+    h+='<div class="card"><div class="card-label">Cost / Set</div><div class="card-value" style="color:'+(perSet>setNpcCost*1.001?'var(--amber)':'var(--green)')+'">'+fmt(Math.round(perSet))+'</div><div style="font-size:0.68rem;color:var(--text3)">ref '+fmt(setNpcCost)+'</div></div>';
+    h+='<div class="card"><div class="card-label">Total Cost</div><div class="card-value">'+fmt(Math.round(planCost))+'</div><div style="font-size:0.68rem;color:var(--text3)">✈'+fN(totalFly)+' · 🛒'+fN(totalMkt)+'</div></div>';
     h+='<div class="card"><div class="card-label">Point Value</div><div class="card-value" style="color:var(--purple)">'+fmt(Math.round(totalPointValue))+'</div><div style="font-size:0.68rem;color:var(--text3)">@ '+fmt(Math.round(pv))+'/pt</div></div>';
-    h+='<div class="card"><div class="card-label">Your Plan Cost</div><div class="card-value" style="color:var(--text)">'+fmt(Math.round(planCost))+'</div><div style="font-size:0.68rem;color:var(--text3)">✈'+fN(totalFlyQty)+' · 🛒'+fN(totalMktQty)+'</div></div>';
     h+='<div class="card" style="border:1px solid '+(planNet>0?'rgba(52,208,88,0.3)':'var(--border)')+'"><div class="card-label">Net Profit</div><div class="card-value" style="color:'+(planNet>0?'var(--green)':'var(--red)')+'">'+fmt(Math.round(planNet))+'</div></div>';
     h+='</div>';
-    // Baselines
+    // Breakdown
     h+='<div style="padding:0 14px 14px;font-size:0.76rem;color:var(--text2)">';
-    h+='<div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--border)"><span>✈ All-Fly baseline (default):</span><span style="font-family:JetBrains Mono,monospace">cost '+fmt(Math.round(allFlyCost))+' → net <b style="color:var(--green)">'+fmt(Math.round(flyNet))+'</b></span></div>';
-    h+='<div style="display:flex;justify-content:space-between;padding:5px 0"><span>🛒 All-Market:</span><span style="font-family:JetBrains Mono,monospace">cost '+fmt(Math.round(allMktCost))+' → net <b style="color:'+(mktNet>0?'var(--green)':'var(--red)')+'">'+fmt(Math.round(mktNet))+'</b></span></div>';
-    const diff=planCost-allFlyCost;
-    if(Math.abs(diff)>0.5){
-      h+='<div style="margin-top:8px;padding:8px 10px;border-radius:6px;background:'+(diff>0?'rgba(251,175,36,0.1)':'rgba(52,208,88,0.1)')+';font-size:0.76rem">';
-      h+=diff>0?('⚠ Your plan costs <b style="color:var(--amber)">'+fmt(Math.round(diff))+' more</b> than flying for everything — market convenience premium.'):('✓ Your plan costs <b style="color:var(--green)">'+fmt(Math.round(-diff))+' less</b> than the all-fly baseline.');
-      h+='</div>';
+    h+='<div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--border)"><span>Already held (at NPC value):</span><span style="font-family:JetBrains Mono,monospace">'+fmt(Math.round(heldValue))+'</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;padding:5px 0"><span>✈ All-Fly baseline ('+fN(target)+' × '+fmt(setNpcCost)+'):</span><span style="font-family:JetBrains Mono,monospace">'+fmt(Math.round(baselineCost))+' → net <b style="color:var(--green)">'+fmt(Math.round(baseNet))+'</b></span></div>';
+    const extra=planCost-baselineCost;
+    if(extra>0.5){
+      h+='<div style="margin-top:8px;padding:8px 10px;border-radius:6px;background:rgba(251,175,36,0.1);font-size:0.76rem">⚠ Buying on market adds <b style="color:var(--amber)">'+fmt(Math.round(extra))+'</b> — cost per set rises from '+fmt(setNpcCost)+' to <b>'+fmt(Math.round(perSet))+'</b> (+'+((perSet/setNpcCost-1)*100).toFixed(1)+'%).</div>';
+    }else{
+      h+='<div style="margin-top:8px;padding:8px 10px;border-radius:6px;background:rgba(52,208,88,0.1);font-size:0.76rem">✓ All-fly plan — cost per set is at the '+fmt(setNpcCost)+' reference.</div>';
     }
-    if(anyNoFly)h+='<div style="margin-top:6px;font-size:0.72rem;color:var(--amber)">⚠ Some items have no NPC buy price — market only for those.</div>';
+    if(anyNoFly)h+='<div style="margin-top:6px;font-size:0.72rem;color:var(--amber)">⚠ Some items have no NPC buy price — market only (reference uses market price for those).</div>';
     h+='</div></div>';
     return h;
   }
   function builderPick(key){builderSet=key;builderMktQty={};builderTarget=null;render()}
   function builderTargetSet(v){builderTarget=Math.max(0,parseInt(v)||0);builderMktQty={};render()}
-  function builderSplit(id,v){builderMktQty[id]=parseInt(v)||0;render()}
+  // Enter fly qty -> market auto = need - fly. Enter market qty -> fly auto = need - market.
+  function builderNeed(id){
+    const set=BUILDER_SETS[builderSet];const target=Math.max(0,parseInt(builderTarget)||0);
+    return Math.max(0,target-heldOf(id));
+  }
+  function builderFly(id,v){const need=builderNeed(id);const fq=Math.min(Math.max(0,parseInt(v)||0),need);builderMktQty[id]=need-fq;render()}
+  function builderMarket(id,v){const need=builderNeed(id);const mq=Math.min(Math.max(0,parseInt(v)||0),need);builderMktQty[id]=mq;render()}
   function toggleSet(name){const real=name.replace(/_/g,' ');if(!window._muOpen)window._muOpen={};window._muOpen[real]=!window._muOpen[real];render()}
 
   function getPointValue(){return POINT_VALUE||(function(){try{return parseFloat(localStorage.getItem('mu_point_value'))||0}catch(e){return 0}})()}
-  return{refresh,render,toggleSet,getPointValue,builderPick,builderTargetSet,builderSplit};
+  return{refresh,render,toggleSet,getPointValue,builderPick,builderTargetSet,builderFly,builderMarket};
 })();
 
 // ====== TRADING / RECEIPT ======
