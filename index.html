@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v15</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v16</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -386,14 +386,23 @@ const TV=(function(){
   async function loadPricesAndRender(){$('tvItems').innerHTML='<div style="padding:24px;text-align:center;color:var(--text3)">Loading your items + market prices...</div>';await loadPrices();renderItems()}
 
   // ===== History (from Netlify function backed by Torn log) =====
+  // Safely parse a fetch response as JSON — returns null instead of throwing on
+  // empty bodies or HTML error pages (which happens when functions aren't deployed).
+  async function safeJson(r){
+    if(!r||!r.ok)return null;
+    const txt=await r.text();
+    if(!txt||!txt.trim())return null;
+    try{return JSON.parse(txt)}catch(e){return null}
+  }
+
   async function loadHistory(){
     $('tvStatusText').textContent='Loading stored history...';
     try{
       const r=await fetch('/.netlify/functions/get-history');
-      const j=await r.json();
+      const j=await safeJson(r);
+      if(!j){$('tvSyncInfo').textContent='⚠ No stored history yet (Netlify functions not deployed, or nothing synced). Live status & current data still work.';$('tvStatusText').textContent='No history backend';$('tvStatusDot').className='status-dot idle';return}
       HISTORY=j;
       renderStockHist();
-      // Build items from buys and load their prices, then render trip log with profit
       await loadPrices();renderItems();renderPeriod();
       if(j.updated)$('tvSyncInfo').textContent='History updated '+new Date(j.updated*1000).toLocaleString()+' · '+(j.travel||[]).length+' trips, '+(j.buys||[]).length+' buys logged';
       $('tvStatusText').textContent='History loaded';$('tvStatusDot').className='status-dot ok';
@@ -416,7 +425,8 @@ const TV=(function(){
     let stable=0,lastCount=-1;
     const poll=async()=>{
       try{
-        const r=await fetch('/.netlify/functions/get-history');const j=await r.json();
+        const r=await fetch('/.netlify/functions/get-history');const j=await safeJson(r);
+        if(!j){$('tvStatusText').textContent='Backfill status unavailable';return}
         HISTORY=j;
         const cnt=(j.travel||[]).length+(j.buys||[]).length;
         if(j.backfillRunning){
@@ -460,14 +470,19 @@ const TV=(function(){
     $('tvStatusText').textContent='Syncing log from Torn...';$('tvStatusDot').className='status-dot loading';
     try{
       const r=await fetch('/.netlify/functions/sync-log?key='+encodeURIComponent(_k));
-      const j=await r.json();
-      if(j.error){
-        toast('❌ Sync: '+j.error);
-        $('tvStatusText').textContent='Sync error';return;
+      const j=await safeJson(r);
+      if(!j){
+        // Function not deployed or returned empty — not a crash, just no backend.
+        $('tvStatusText').textContent='Sync unavailable';$('tvStatusDot').className='status-dot idle';
+        $('tvSyncInfo').textContent='⚠ Sync needs Netlify functions deployed. Live status & current-period data still work without it.';
+        // Still try to show any previously stored history
+        await loadHistory();return;
       }
-      toast('🔄 Synced: +'+j.added.travel+' trips, +'+j.added.buys+' buys, +'+j.added.stocks+' stock tx');
+      if(j.error){toast('❌ Sync: '+j.error);$('tvStatusText').textContent='Sync error';return}
+      const a=j.added||{travel:0,buys:0,stocks:0};
+      toast('🔄 Synced: +'+(a.travel||0)+' trips, +'+(a.buys||0)+' buys, +'+(a.stocks||0)+' stock tx');
       await loadHistory();
-    }catch(e){toast('❌ '+e.message);$('tvSyncInfo').textContent='⚠ Sync needs Netlify functions deployed'}
+    }catch(e){$('tvStatusText').textContent='Sync unavailable';$('tvSyncInfo').textContent='⚠ Sync needs Netlify functions deployed (live data still works)'}
   }
   function ctry(t){return t.country||AREA_MAP[t.area]||('Area '+t.area)}
   // Country of a trip derived from the items bought on it (authoritative via vendor country)
