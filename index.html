@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v16</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v15</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -569,7 +569,10 @@ const TV=(function(){
   function renderPeriod(){
     const el=$('tvPeriodBrowser');if(!el)return;
     try{const sv=localStorage.getItem('tv_capacity');if(sv&&$('tvCapacity')&&$('tvCapacity').value==='27'&&!window._capRestored){$('tvCapacity').value=sv;window._capRestored=true}}catch(e){}
-    if(!HISTORY||!HISTORY.travel){el.innerHTML='';return}
+    if(!HISTORY||!HISTORY.travel){
+      el.innerHTML='<div class="tw"><div class="tt">✈️ Travel Summary</div><div style="padding:20px;text-align:center"><div style="font-size:2rem;margin-bottom:8px">🔌</div><div style="font-weight:600;margin-bottom:6px">No travel history loaded</div><div style="font-size:0.8rem;color:var(--text3);line-height:1.6;max-width:460px;margin:0 auto">Trip counts, destinations and items bought abroad come from the stored history, which is served by the <b>Netlify functions</b>.<br><br>If you haven\'t deployed <code style="color:var(--cyan)">netlify/functions/</code> yet, deploy them, then tap <b>🔄 Refresh &amp; Sync Travel</b> to build your history.<br><br><span style="color:var(--text2)">Live flight status and awards still work without it.</span></div></div></div>';
+      return;
+    }
     const type=window._periodType||(localStorage.getItem('tv_ptype')||'week');
     const offset=window._periodOffset||0;
     const cap=parseInt($('tvCapacity').value)||27;
