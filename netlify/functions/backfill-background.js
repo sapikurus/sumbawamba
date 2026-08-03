@@ -71,6 +71,22 @@ export default async (req) => {
     hist.backfillError=String(e.message||e);
   }
 
+  // Final save. Re-read the blob first and MERGE: a normal sync may have added newer
+  // entries while this long-running backfill was walking backward. Writing our stale
+  // in-memory copy would silently wipe them.
+  try{
+    const fresh=await store.get('history',{type:'json'});
+    if(fresh){
+      const known=new Set(hist.travel.map(t=>t.id));
+      for(const t of (fresh.travel||[]))if(!known.has(t.id))hist.travel.push(t);
+      const knownB=new Set(hist.buys.map(b=>b.id));
+      for(const b of (fresh.buys||[]))if(!knownB.has(b.id))hist.buys.push(b);
+      if((fresh.lastTs||0)>(hist.lastTs||0))hist.lastTs=fresh.lastTs;
+      if(fresh.stats&&(!hist.stats||!hist.stats.length))hist.stats=fresh.stats;
+      if(fresh.stocks&&(!hist.stocks||!hist.stocks.length))hist.stocks=fresh.stocks;
+    }
+  }catch(e){}
+
   hist.travel.sort((a,b)=>b.ts-a.ts).splice(30000);
   hist.buys.sort((a,b)=>b.ts-a.ts).splice(30000);
   hist.backfillRunning=false;

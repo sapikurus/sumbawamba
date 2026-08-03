@@ -22,7 +22,7 @@ async function doSync(KEY, opts){
   // run short bursts per invocation then pause, keeping the average safe.
   const PAGE_LIMIT = backfill ? 18 : 5;
   const THROTTLE = backfill ? 350 : 650;
-  let pages=0, newestTs=hist.lastTs, oldestReached=false;
+  let pages=0, newestTs=hist.lastTs, oldestReached=false, reachedKnown=false;
 
   // For backfill we page BACKWARD from the cursor (oldest seen so far).
   // For normal sync we page from newest until we hit lastTs.
@@ -35,24 +35,26 @@ async function doSync(KEY, opts){
     if(j.error) throw new Error('Torn API: '+j.error.error);
     const log=j.log||[];
     if(!log.length){ oldestReached=true; break; }
-    let hitOld=false;
+    // Dedupe by entry ID (authoritative). Timestamps are NOT used to decide what's new —
+    // a reset backfill pins lastTs to the rebuild moment, which used to make the sync skip
+    // everything after it. Counting new IDs per page makes this self-healing.
+    let newOnPage=0;
     for(const e of log){
       if(e.timestamp>newestTs) newestTs=e.timestamp;
-      // In normal (non-backfill) mode, stop when we reach already-stored entries
-      if(!backfill && e.timestamp<=hist.lastTs){ hitOld=true; continue }
       const t=e.details&&e.details.title, d=e.data||{};
       if(t==='Travel depart'){
-        const dur=d.duration||0;
-        if(!seen.has(e.id)){newTravel.push({id:e.id,ts:e.timestamp,area:d.destination,origin:d.origin,duration:dur,method:d.travel_method||''});seen.add(e.id)}
+        if(!seen.has(e.id)){newTravel.push({id:e.id,ts:e.timestamp,area:d.destination,origin:d.origin,duration:d.duration||0,method:d.travel_method||''});seen.add(e.id);newOnPage++}
       }else if(t==='Item abroad buy'){
-        if(!seen.has(e.id)){newBuys.push({id:e.id,ts:e.timestamp,item:d.item,qty:d.quantity,costEach:d.cost_each,area:d.area});seen.add(e.id)}
+        if(!seen.has(e.id)){newBuys.push({id:e.id,ts:e.timestamp,item:d.item,qty:d.quantity,costEach:d.cost_each,area:d.area});seen.add(e.id);newOnPage++}
       }
+      // Track how far back this page reached relative to what we already have
+      if(!backfill && e.timestamp<=hist.lastTs) reachedKnown=true;
     }
     to=Math.min(...log.map(e=>e.timestamp))-1;
     pages++;
-    if(!backfill && hitOld){ break }
-    // Only stop backfill when a page comes back EMPTY. A short page (e.g. 98)
-    // is NOT the end — Torn returns variable page sizes mid-history.
+    // Normal sync: stop once we're into already-known territory AND this page added
+    // nothing new. Requiring both means a stale lastTs can't cause us to stop early.
+    if(!backfill && reachedKnown && newOnPage===0){ break }
     if(log.length===0){ oldestReached=true; break }
     await new Promise(r=>setTimeout(r,THROTTLE));
   }
