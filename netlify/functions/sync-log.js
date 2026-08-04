@@ -172,18 +172,9 @@ export default async (req) => {
   const KEY = paramKey || process.env.TORN_FULL_KEY;
   if(!KEY) return new Response(JSON.stringify({error:'No API key provided'}),{status:500,headers:{'Content-Type':'application/json'}});
 
-  let scheduled=false;
-  try{ if(req.body){ const b=await req.clone().json().catch(()=>null); if(b&&b.next_run) scheduled=true; } }catch(e){}
-
-  const SECRET = process.env.SYNC_SECRET;
   let params={};
-  try{ const u=new URL(req.url); params.reset=u.searchParams.get('reset')==='1'; params.backfill=u.searchParams.get('backfill')==='1'; params.secret=u.searchParams.get('secret'); }catch(e){}
-
-  if(!scheduled && SECRET){
-    if(params.secret!==SECRET){
-      return new Response(JSON.stringify({error:params.secret?'Invalid sync secret':'Sync secret required'}),{status:params.secret?403:401,headers:{'Content-Type':'application/json'}});
-    }
-  }
+  try{ const u=new URL(req.url); params.reset=u.searchParams.get('reset')==='1'; params.backfill=u.searchParams.get('backfill')==='1'; }catch(e){}
+  // No secret gate: the Torn API key passed per-request is the credential.
 
   try{
     const result = await doSync(KEY, {reset:params.reset, backfill:params.backfill});
@@ -193,4 +184,6 @@ export default async (req) => {
   }
 };
 
-export const config = { schedule: '0 */6 * * *' };
+// NOTE: deliberately NOT a scheduled function. Netlify blocks direct HTTP invocation of
+// scheduled functions with 403, which broke the app's manual "Refresh & Sync". The app
+// supplies the API key per-request, so scheduled runs couldn't authenticate anyway.
