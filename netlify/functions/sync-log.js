@@ -14,19 +14,24 @@ async function doSync(KEY, opts){
   if(!hist) hist = {travel:[],buys:[],stocks:[],lastTs:0,lastStockTs:0,updated:0,backfillCursor:null,backfillDone:false};
   if(!hist.stocks) hist.stocks=[];
   if(hist.backfillCursor===undefined) hist.backfillCursor=null;
+  if(hist.syncCursor===undefined) hist.syncCursor=null;
   const seen = new Set(hist.travel.map(t=>t.id).concat(hist.buys.map(b=>b.id)));
 
   let newTravel=[],newBuys=[];
   // Aggressive backfill: many pages per invocation with light throttle.
   // Torn allows ~100 req/min. At 350ms/page = ~170/min sustained, but we only
   // run short bursts per invocation then pause, keeping the average safe.
-  const PAGE_LIMIT = backfill ? 18 : 5;
-  const THROTTLE = backfill ? 350 : 650;
+  const PAGE_LIMIT = backfill ? 18 : 20;
+  const THROTTLE = backfill ? 350 : 400;
   let pages=0, newestTs=hist.lastTs, oldestReached=false, reachedKnown=false;
 
   // For backfill we page BACKWARD from the cursor (oldest seen so far).
-  // For normal sync we page from newest until we hit lastTs.
+  // For normal sync we start at the newest page (to catch brand-new entries), then, if a
+  // previous run ended without connecting to known data, jump to that gap cursor and keep
+  // filling backward from there.
   let to = backfill ? (hist.backfillCursor||null) : null;
+  const gapCursor = (!backfill && hist.syncCursor) ? hist.syncCursor : null;
+  let jumpedToGap=false;
 
   while(pages<PAGE_LIMIT){
     const url='https://api.torn.com/v2/user/log?key='+encodeURIComponent(KEY)+'&limit=100'+(to?'&to='+to:'');
@@ -52,9 +57,11 @@ async function doSync(KEY, opts){
     }
     to=Math.min(...log.map(e=>e.timestamp))-1;
     pages++;
+    // After the first (newest) page, jump to an unfinished gap if one was recorded.
+    if(!backfill && gapCursor && !jumpedToGap){ to=gapCursor; jumpedToGap=true; reachedKnown=false; }
     // Normal sync: stop once we're into already-known territory AND this page added
     // nothing new. Requiring both means a stale lastTs can't cause us to stop early.
-    if(!backfill && reachedKnown && newOnPage===0){ break }
+    else if(!backfill && reachedKnown && newOnPage===0){ break }
     if(log.length===0){ oldestReached=true; break }
     await new Promise(r=>setTimeout(r,THROTTLE));
   }
@@ -62,7 +69,18 @@ async function doSync(KEY, opts){
   // Merge
   hist.travel = newTravel.concat(hist.travel).sort((a,b)=>b.ts-a.ts).slice(0,20000);
   hist.buys = newBuys.concat(hist.buys).sort((a,b)=>b.ts-a.ts).slice(0,20000);
-  if(newestTs>hist.lastTs) hist.lastTs = newestTs;
+
+  // CRITICAL: only advance lastTs if this scan actually connected back to data we already
+  // had. Advancing after an incomplete scan leaves the unscanned middle permanently
+  // skipped — which is what made same-day trips vanish no matter how often you refreshed.
+  if(!backfill){
+    if(reachedKnown || oldestReached){
+      if(newestTs>hist.lastTs) hist.lastTs = newestTs;
+      hist.syncCursor = null;          // gap closed
+    }else{
+      hist.syncCursor = to;            // resume here next run; leave lastTs untouched
+    }
+  }
 
   // Track backfill progress
   if(backfill){
@@ -133,6 +151,7 @@ async function doSync(KEY, opts){
     added:{travel:newTravel.length,buys:newBuys.length,stocks:newStocks},
     total:{travel:hist.travel.length,buys:hist.buys.length,stocks:hist.stocks.length},
     backfillDone:hist.backfillDone, backfillMore:(backfill && !hist.backfillDone),
+    gapRemaining:!!hist.syncCursor, pagesScanned:pages,
     updated:hist.updated
   };
 }

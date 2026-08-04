@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v17</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v18</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -482,6 +482,18 @@ const TV=(function(){
       const a=j.added||{travel:0,buys:0,stocks:0};
       toast('🔄 Synced: +'+(a.travel||0)+' trips, +'+(a.buys||0)+' buys, +'+(a.stocks||0)+' stock tx');
       await loadHistory();
+      // If the scan couldn't reach back to already-stored data, a gap remains. Keep going
+      // automatically (up to a few rounds) so same-day trips aren't left stranded.
+      if(j.gapRemaining){
+        const round=(window._syncRound||0)+1;window._syncRound=round;
+        if(round<=6){
+          $('tvStatusText').textContent='Filling gap in log… (pass '+round+')';
+          $('tvSyncInfo').textContent='Log is busy — scanning further back to catch older entries.';
+          return await syncNow();
+        }
+        $('tvSyncInfo').textContent='⚠ Still catching up on a busy log — tap Refresh & Sync again to continue.';
+      }
+      window._syncRound=0;
     }catch(e){$('tvStatusText').textContent='Sync unavailable';$('tvSyncInfo').textContent='⚠ Sync needs Netlify functions deployed (live data still works)'}
   }
   function ctry(t){return t.country||AREA_MAP[t.area]||('Area '+t.area)}
