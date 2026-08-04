@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v18</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v19</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -472,10 +472,19 @@ const TV=(function(){
       const r=await fetch('/.netlify/functions/sync-log?key='+encodeURIComponent(_k));
       const j=await safeJson(r);
       if(!j){
-        // Function not deployed or returned empty — not a crash, just no backend.
-        $('tvStatusText').textContent='Sync unavailable';$('tvStatusDot').className='status-dot idle';
-        $('tvSyncInfo').textContent='⚠ Sync needs Netlify functions deployed. Live status & current-period data still work without it.';
-        // Still try to show any previously stored history
+        // Distinguish "function missing" (404) from "function crashed/timed out" (5xx) —
+        // a silent timeout previously looked identical to no backend at all.
+        $('tvStatusDot').className='status-dot idle';
+        if(r.status>=500){
+          $('tvStatusText').textContent='Sync failed (server error '+r.status+')';
+          $('tvSyncInfo').textContent='⚠ The sync function errored or timed out (HTTP '+r.status+'). Tap Refresh & Sync again — it resumes where it stopped.';
+        }else if(r.status===404){
+          $('tvStatusText').textContent='Sync unavailable';
+          $('tvSyncInfo').textContent='⚠ Sync needs Netlify functions deployed. Live status & current-period data still work without it.';
+        }else{
+          $('tvStatusText').textContent='Sync unavailable (HTTP '+r.status+')';
+          $('tvSyncInfo').textContent='⚠ Sync returned HTTP '+r.status+'. Check the Netlify function logs.';
+        }
         await loadHistory();return;
       }
       if(j.error){toast('❌ Sync: '+j.error);$('tvStatusText').textContent='Sync error';return}

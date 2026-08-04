@@ -21,8 +21,13 @@ async function doSync(KEY, opts){
   // Aggressive backfill: many pages per invocation with light throttle.
   // Torn allows ~100 req/min. At 350ms/page = ~170/min sustained, but we only
   // run short bursts per invocation then pause, keeping the average safe.
-  const PAGE_LIMIT = backfill ? 18 : 20;
-  const THROTTLE = backfill ? 350 : 400;
+  // sync-log is a SYNCHRONOUS Netlify function — hard 10s timeout. Exceeding it means the
+  // function dies and NOTHING is written. Keep each invocation short and rely on the
+  // resumable gap cursor (plus the app's auto-continue) to scan deep across several runs.
+  const PAGE_LIMIT = backfill ? 18 : 8;
+  const THROTTLE = backfill ? 350 : 300;
+  const TIME_BUDGET_MS = backfill ? 13*60*1000 : 6500; // leave headroom under the 10s cap
+  const startedAt = Date.now();
   let pages=0, newestTs=hist.lastTs, oldestReached=false, reachedKnown=false;
 
   // For backfill we page BACKWARD from the cursor (oldest seen so far).
@@ -63,6 +68,9 @@ async function doSync(KEY, opts){
     // nothing new. Requiring both means a stale lastTs can't cause us to stop early.
     else if(!backfill && reachedKnown && newOnPage===0){ break }
     if(log.length===0){ oldestReached=true; break }
+    // Wall-clock guard: bail out cleanly before the platform kills us, so what we've
+    // gathered still gets saved and the gap cursor lets the next run continue.
+    if(Date.now()-startedAt > TIME_BUDGET_MS) break;
     await new Promise(r=>setTimeout(r,THROTTLE));
   }
 
@@ -118,7 +126,8 @@ async function doSync(KEY, opts){
       if(!hist.stats) hist.stats=[];
       const today=new Date();const dayKey=today.getUTCFullYear()+'-'+String(today.getUTCMonth()+1).padStart(2,'0')+'-'+String(today.getUTCDate()).padStart(2,'0');
       const already=hist.stats.length&&hist.stats[hist.stats.length-1].day===dayKey;
-      if(!already){
+      // Travel data is the priority — skip the optional stats snapshot if we're low on time.
+      if(!already && Date.now()-startedAt < 7500){
         await new Promise(r=>setTimeout(r,THROTTLE));
         // networth + work stats from personalstats; battle stats from battlestats
         const [psR,bsR]=await Promise.all([
