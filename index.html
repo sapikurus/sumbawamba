@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v16</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v17</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -136,7 +136,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
     <button class="page-nav-btn" onclick="switchPage('bounty',this)"><span class="nav-icon">🎯</span> Bounty Scout</button>
     <button class="page-nav-btn" onclick="switchPage('museum',this)"><span class="nav-icon">🏛️</span> Museum</button>
     <button class="page-nav-btn" onclick="switchPage('trading',this)"><span class="nav-icon">🧾</span> Trading</button>
-    <button class="page-nav-btn" onclick="switchPage('energy',this)"><span class="nav-icon">⚡</span> Energy Calc</button>
+    <button class="page-nav-btn" onclick="switchPage('energy',this)"><span class="nav-icon">💉</span> Reviving</button>
   </div>
   <div class="api-bar">
     <input type="password" class="api-input" id="apiKey" placeholder="Torn API key..." autocomplete="off">
@@ -761,6 +761,27 @@ const TV=(function(){
 
 <div class="page" id="page-energy">
 <main class="main">
+  <div class="status-bar"><div><span class="status-dot idle" id="rvStatusDot"></span><span id="rvStatusText">Scan your log to find revives</span></div><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-primary" onclick="RV.scan()" style="padding:5px 12px;font-size:0.75rem"><span>🔍 Scan Revives</span></button><span id="rvLastUpdated"></span></div></div>
+
+  <div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">💉</span><div><strong>Revive Log</strong> — Scans your Torn activity log for revives you performed, resolves each patient's name, and lets you generate a payment invoice to copy-paste to them. Names are cached so repeat scans are fast.</div></div>
+
+  <div class="tw"><div class="tt">⚙️ Invoice Settings</div><div style="padding:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Price ($)</label><input id="rvPrice" value="1800000" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:130px;font-family:JetBrains Mono,monospace"></div>
+    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">or Xanax</label><input id="rvXanax" type="number" min="0" value="2" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:80px;font-family:JetBrains Mono,monospace"></div>
+    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Your name</label><input id="rvMyName" value="sumbawamba" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:150px"></div>
+    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Your Torn ID</label><input id="rvMyId" value="3585807" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:110px;font-family:JetBrains Mono,monospace"></div>
+    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Scan depth</label><select id="rvDepth" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text)"><option value="5">5 pages (~fast)</option><option value="10" selected>10 pages</option><option value="20">20 pages (deep)</option><option value="40">40 pages (slow)</option></select></div>
+  </div></div>
+
+  <div class="tw"><div class="tt">💉 Revives <span class="badge" id="rvCount">0</span> <span style="margin-left:auto;font-size:0.72rem;color:var(--text3);font-weight:400" id="rvSummary"></span></div>
+    <div id="rvList"><div class="empty" style="padding:26px"><div class="empty-icon">💉</div><p style="color:var(--text3);font-size:0.82rem">Tap <b>Scan Revives</b> to pull your revive history from the Torn log.</p></div></div>
+  </div>
+
+  <div id="rvInvoiceBox" style="display:none" class="tw"><div class="tt">🧾 Invoice <span style="margin-left:auto"><button class="btn" onclick="RV.copyInvoice()" style="padding:4px 12px;font-size:0.72rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>📋 Copy</span></button></span></div>
+    <div style="padding:14px"><div id="rvInvoice" style="background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:14px;font-family:JetBrains Mono,monospace;font-size:0.82rem;white-space:pre-wrap;color:var(--text2);line-height:1.5"></div></div>
+  </div>
+
+  <div style="height:1px;background:var(--border);margin:22px 0"></div>
   <div class="status-bar"><div><span class="status-dot idle" id="enStatusDot"></span><span id="enStatusText">Configure your settings & calculate</span></div><div id="enLastUpdated"></div></div>
   <div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">⚡</span><div><strong>Energy Drink Optimizer</strong> — Finds drink combinations that land your total energy on a clean multiple of 5 (so nothing is stranded). The real constraint is <b>booster cooldown</b>: each can adds 2hr, capped at 39hr (≈19 cans), so minimizing cans matters more than cost. Energy can stack past 150 up to 1000, so overshoot is bankable.</div></div>
   <div class="tw" style="overflow:visible"><div class="tt">⚙️ Settings</div>
@@ -2151,8 +2172,8 @@ const MU=(function(){
       h+='<span style="text-align:right;font-family:JetBrains Mono,monospace;color:var(--text3)">'+fN(have)+'</span>';
       h+='<span style="text-align:right;font-family:JetBrains Mono,monospace;color:'+(need>0?'var(--amber)':'var(--green)')+'">'+(need>0?fN(need):'✓')+'</span>';
       if(need>0){
-        h+='<input type="number" min="0" max="'+need+'" value="'+fq+'" onchange="MU.builderFly('+id+',this.value)" '+(canFly?'':'disabled')+' style="width:100%;background:var(--bg3);border:1px solid rgba(34,211,238,0.3);border-radius:4px;padding:3px 5px;color:var(--cyan);font-family:JetBrains Mono,monospace;font-size:0.74rem;text-align:right;opacity:'+(canFly?'1':'0.4')+'">';
-        h+='<input type="number" min="0" max="'+need+'" value="'+mq+'" onchange="MU.builderMarket('+id+',this.value)" style="width:100%;background:var(--bg3);border:1px solid rgba(251,175,36,0.3);border-radius:4px;padding:3px 5px;color:var(--amber);font-family:JetBrains Mono,monospace;font-size:0.74rem;text-align:right">';
+        h+='<span style="display:flex;gap:3px;align-items:center"><input type="number" min="0" max="'+need+'" value="'+fq+'" onchange="MU.builderFly('+id+',this.value)" '+(canFly?'':'disabled')+' style="width:100%;min-width:0;background:var(--bg3);border:1px solid rgba(34,211,238,0.3);border-radius:4px;padding:3px 5px;color:var(--cyan);font-family:JetBrains Mono,monospace;font-size:0.74rem;text-align:right;opacity:'+(canFly?'1':'0.4')+'"><button onclick="MU.builderAllFly('+id+')" '+(canFly?'':'disabled')+' title="Set 100% fly for this item" style="flex-shrink:0;background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.5);border-radius:4px;color:var(--cyan);cursor:'+(canFly?'pointer':'not-allowed')+';font-size:0.66rem;padding:3px 6px;font-weight:600;white-space:nowrap;opacity:'+(canFly?'1':'0.4')+'">ALL ✈</button></span>';
+        h+='<span style="display:flex;gap:3px;align-items:center"><input type="number" min="0" max="'+need+'" value="'+mq+'" onchange="MU.builderMarket('+id+',this.value)" style="width:100%;min-width:0;background:var(--bg3);border:1px solid rgba(251,175,36,0.3);border-radius:4px;padding:3px 5px;color:var(--amber);font-family:JetBrains Mono,monospace;font-size:0.74rem;text-align:right"><button onclick="MU.builderAllMarket('+id+')" title="Set 100% market for this item" style="flex-shrink:0;background:rgba(251,175,36,0.15);border:1px solid rgba(251,175,36,0.5);border-radius:4px;color:var(--amber);cursor:pointer;font-size:0.66rem;padding:3px 6px;font-weight:600;white-space:nowrap">ALL 🛒</button></span>';
       }else{
         h+='<span style="text-align:right;color:var(--text3)">—</span><span style="text-align:right;color:var(--text3)">—</span>';
       }
@@ -2196,10 +2217,12 @@ const MU=(function(){
   }
   function builderFly(id,v){const need=builderNeed(id);const fq=Math.min(Math.max(0,parseInt(v)||0),need);builderMktQty[id]=need-fq;render()}
   function builderMarket(id,v){const need=builderNeed(id);const mq=Math.min(Math.max(0,parseInt(v)||0),need);builderMktQty[id]=mq;render()}
+  function builderAllFly(id){builderMktQty[id]=0;render()}                       // 100% fly for this item
+  function builderAllMarket(id){builderMktQty[id]=builderNeed(id);render()}       // 100% market for this item
   function toggleSet(name){const real=name.replace(/_/g,' ');if(!window._muOpen)window._muOpen={};window._muOpen[real]=!window._muOpen[real];render()}
 
   function getPointValue(){return POINT_VALUE||(function(){try{return parseFloat(localStorage.getItem('mu_point_value'))||0}catch(e){return 0}})()}
-  return{refresh,render,toggleSet,getPointValue,builderPick,builderTargetSet,builderFly,builderMarket};
+  return{refresh,render,toggleSet,getPointValue,builderPick,builderTargetSet,builderFly,builderMarket,builderAllFly,builderAllMarket};
 })();
 
 // ====== TRADING / RECEIPT ======
@@ -2424,6 +2447,138 @@ const TR=(function(){
   return{parsePaste,addManual,updateLine,removeLine,clearAll,setDefaultPct,copyReceipt,render,ensureItems,generateHTML,openHist,downloadHist,delHist,renderHistory,ocrImage};
 })();
 
+// ====== REVIVING (revive log + invoicing) ======
+const RV=(function(){
+  let REVIVES=[];               // {id,ts,uid,name,chance,energy,success}
+  let NAMES={};                 // uid -> name (cached in localStorage)
+  try{NAMES=JSON.parse(localStorage.getItem('rv_names')||'{}')}catch(e){NAMES={}}
+
+  function saveSettings(){
+    try{
+      localStorage.setItem('rv_cfg',JSON.stringify({
+        price:$('rvPrice').value,xanax:$('rvXanax').value,
+        myName:$('rvMyName').value,myId:$('rvMyId').value,depth:$('rvDepth').value
+      }));
+    }catch(e){}
+  }
+  function loadSettings(){
+    try{
+      const c=JSON.parse(localStorage.getItem('rv_cfg')||'null');if(!c)return;
+      if(c.price)$('rvPrice').value=c.price;
+      if(c.xanax)$('rvXanax').value=c.xanax;
+      if(c.myName)$('rvMyName').value=c.myName;
+      if(c.myId)$('rvMyId').value=c.myId;
+      if(c.depth)$('rvDepth').value=c.depth;
+    }catch(e){}
+  }
+
+  async function scan(){
+    const k=$('apiKey').value.trim();
+    if(!k){$('rvStatusText').textContent='Enter your Torn API key first';return}
+    const depth=parseInt($('rvDepth').value)||10;
+    $('rvStatusDot').className='status-dot loading';
+    REVIVES=[];
+    let to=null;
+    try{
+      for(let pg=0;pg<depth;pg++){
+        $('rvStatusText').textContent='Scanning log… page '+(pg+1)+'/'+depth;
+        const url='https://api.torn.com/v2/user/log?key='+encodeURIComponent(k)+'&limit=100'+(to?'&to='+to:'');
+        const r=await fetch(url);const j=await r.json();
+        if(j.error){$('rvStatusText').textContent='API error: '+j.error.error;$('rvStatusDot').className='status-dot err';return}
+        const log=j.log||[];if(!log.length)break;
+        for(const e of log){
+          const t=(e.details||{}).title||'';
+          if(t!=='Revive'&&t!=='Revive failure')continue;
+          const d=e.data||{};
+          // NOTE: success stores the patient in `user`, failure stores it in `patient`
+          const uid=d.user||d.patient;
+          if(!uid)continue;
+          REVIVES.push({id:e.id,ts:e.timestamp,uid,chance:parseFloat(d.chance)||0,energy:d.energy_used||0,success:t==='Revive'});
+        }
+        to=Math.min(...log.map(e=>e.timestamp))-1;
+        await new Promise(r=>setTimeout(r,350));
+      }
+      REVIVES.sort((a,b)=>b.ts-a.ts);
+      render();
+      await resolveNames(k);
+      render();
+      $('rvStatusDot').className='status-dot ok';
+      $('rvStatusText').textContent='Found '+REVIVES.length+' revive'+(REVIVES.length===1?'':'s');
+      $('rvLastUpdated').textContent=new Date().toLocaleTimeString();
+    }catch(e){$('rvStatusText').textContent='Error: '+e.message;$('rvStatusDot').className='status-dot err'}
+  }
+
+  async function resolveNames(k){
+    const need=[...new Set(REVIVES.map(r=>r.uid))].filter(u=>!NAMES[u]);
+    for(let i=0;i<need.length;i++){
+      const uid=need[i];
+      $('rvStatusText').textContent='Resolving names… '+(i+1)+'/'+need.length;
+      try{
+        const r=await fetch('https://api.torn.com/user/'+uid+'?selections=basic&key='+encodeURIComponent(k));
+        const j=await r.json();
+        if(j&&j.name)NAMES[uid]=j.name;
+      }catch(e){}
+      await new Promise(r=>setTimeout(r,350));
+    }
+    try{localStorage.setItem('rv_names',JSON.stringify(NAMES))}catch(e){}
+  }
+
+  function nameOf(uid){return NAMES[uid]||('Player '+uid)}
+  function dstr(ts){const d=new Date(ts*1000);return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})+' · '+d.toLocaleDateString()}
+
+  function render(){
+    $('rvCount').textContent=REVIVES.length;
+    if(!REVIVES.length){
+      $('rvList').innerHTML='<div class="empty" style="padding:26px"><div class="empty-icon">💉</div><p style="color:var(--text3);font-size:0.82rem">No revives found in the scanned range. Try a deeper scan.</p></div>';
+      $('rvSummary').textContent='';return;
+    }
+    const ok=REVIVES.filter(r=>r.success).length;
+    const avg=REVIVES.reduce((s,r)=>s+r.chance,0)/REVIVES.length;
+    const en=REVIVES.reduce((s,r)=>s+r.energy,0);
+    $('rvSummary').textContent=ok+' successful · '+(REVIVES.length-ok)+' failed · avg chance '+avg.toFixed(1)+'% · '+fN(en)+' energy used';
+    let h='<table><thead><tr><th>Patient</th><th class="c">Result</th><th class="r">Chance</th><th class="r">Energy</th><th>When</th><th class="c">Invoice</th></tr></thead><tbody>';
+    REVIVES.forEach((r,i)=>{
+      const nm=nameOf(r.uid);
+      h+='<tr><td><a href="https://www.torn.com/profiles.php?XID='+r.uid+'" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;font-weight:600">'+nm+'</a> <span style="font-size:0.68rem;color:var(--text3)">['+r.uid+']</span></td>';
+      h+='<td class="c">'+(r.success?'<span class="chip cg">✓ revived</span>':'<span class="chip cr">✗ failed</span>')+'</td>';
+      h+='<td class="r" style="font-family:JetBrains Mono,monospace;color:'+(r.chance>=90?'var(--green)':r.chance>=70?'var(--amber)':'var(--red)')+'">'+r.chance.toFixed(2)+'%</td>';
+      h+='<td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+r.energy+'</td>';
+      h+='<td style="font-size:0.74rem;color:var(--text3);white-space:nowrap">'+dstr(r.ts)+'</td>';
+      h+='<td class="c">'+(r.success?'<button onclick="RV.invoice('+i+')" class="btn" style="padding:3px 10px;font-size:0.7rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)">🧾</button>':'—')+'</td></tr>';
+    });
+    h+='</tbody></table>';
+    $('rvList').innerHTML=h;
+  }
+
+  function invoice(i){
+    const r=REVIVES[i];if(!r)return;
+    const price=parseInt(String($('rvPrice').value).replace(/[^0-9]/g,''))||0;
+    const xan=parseInt($('rvXanax').value)||0;
+    const myName=$('rvMyName').value.trim()||'sumbawamba';
+    const myId=String($('rvMyId').value).replace(/[^0-9]/g,'')||'3585807';
+    const nm=nameOf(r.uid);
+    const priceTxt=price>=1000000?(price/1000000).toFixed(price%1000000?1:0).replace('.0','')+'m':fN(price);
+    let t='Hi '+nm+',\n\n';
+    t+='You requested a revival service — you were successfully revived ';
+    t+='('+r.chance.toFixed(2)+'% revive chance) on '+dstr(r.ts)+'.\n\n';
+    t+='Please pay '+priceTxt;
+    if(xan>0)t+=' or '+xan+' Xanax';
+    t+=' to '+myName+' (https://www.torn.com/profiles.php?XID='+myId+').\n\n';
+    t+='Thank you for using Sumbawamba revive service!';
+    $('rvInvoice').textContent=t;
+    $('rvInvoiceBox').style.display='';
+    $('rvInvoiceBox').scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+  function copyInvoice(){
+    const txt=$('rvInvoice').textContent;
+    if(navigator.clipboard)navigator.clipboard.writeText(txt).then(()=>{$('rvStatusText').textContent='✓ Invoice copied'}).catch(()=>fb(txt));
+    else fb(txt);
+    function fb(t){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');$('rvStatusText').textContent='✓ Invoice copied'}catch(e){}document.body.removeChild(ta)}
+  }
+
+  return{scan,render,invoice,copyInvoice,saveSettings,loadSettings};
+})();
+
 // ====== UNIFIED FETCH ======
 async function refreshSection(section){
   const k=$('apiKey').value.trim();if(!k){toast('⚠️ Enter your API key');return}
@@ -2462,6 +2617,7 @@ async function fetchAllData(){
     navigator.serviceWorker.register(swUrl,{scope:'/'}).catch(()=>{});
   }
   if(window.EN){EN.init();const m=$('enMult');if(m)m.addEventListener('change',()=>EN.renderDrinks())}
+  try{if(typeof RV!=='undefined')RV.loadSettings()}catch(e){}
   try{if(typeof TR!=='undefined')TR.renderHistory()}catch(e){}
 
   // Auto-load on open: show cached dashboard instantly, then quietly refresh light
