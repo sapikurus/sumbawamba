@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v20</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v21</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -2547,6 +2547,31 @@ const RV=(function(){
   function nameOf(uid){return NAMES[uid]||('Player '+uid)}
   function dstr(ts){const d=new Date(ts*1000);return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})+' · '+d.toLocaleDateString()}
 
+  // Per-revive custom prices (survives rescans; keyed by log entry id)
+  let PRICES={};try{PRICES=JSON.parse(localStorage.getItem('rv_prices')||'{}')}catch(e){PRICES={}}
+  let SEL={};   // revive id -> selected
+  function savePrices(){try{localStorage.setItem('rv_prices',JSON.stringify(PRICES))}catch(e){}}
+  function defaultPrice(){return parseInt(String($('rvPrice').value).replace(/[^0-9]/g,''))||0}
+  function priceOf(r){return PRICES[r.id]!=null?PRICES[r.id]:defaultPrice()}
+  // Xanax unit value derived from the default price/xanax pair, so custom prices still
+  // get a sensible Xanax equivalent without another settings field.
+  function xanaxUnit(){const p=defaultPrice(),x=parseInt($('rvXanax').value)||0;return (p>0&&x>0)?(p/x):0}
+  function money(n){return n>=1000000?((n/1000000).toFixed(n%1000000?1:0).replace(/\.0$/,'')+'m'):fN(n)}
+
+  function setPrice(id,v){const n=parseInt(String(v).replace(/[^0-9]/g,''));if(isNaN(n)){delete PRICES[id]}else{PRICES[id]=n}savePrices();render()}
+  function toggleSel(id){SEL[id]=!SEL[id];render()}
+  function selAll(on){for(const r of REVIVES)if(r.success)SEL[r.id]=on;render()}
+  function selPlayer(uid){for(const r of REVIVES)if(r.success&&r.uid===uid)SEL[r.id]=true;render()}
+  function bulkPrice(){
+    const chosen=REVIVES.filter(r=>SEL[r.id]);
+    if(!chosen.length){alert('Select some revives first.');return}
+    const v=prompt('Set price for '+chosen.length+' selected revive(s):', defaultPrice());
+    if(v==null)return;
+    const n=parseInt(String(v).replace(/[^0-9]/g,''));if(isNaN(n))return;
+    for(const r of chosen)PRICES[r.id]=n;
+    savePrices();render();
+  }
+
   function render(){
     $('rvCount').textContent=REVIVES.length;
     if(!REVIVES.length){
@@ -2556,36 +2581,88 @@ const RV=(function(){
     const ok=REVIVES.filter(r=>r.success).length;
     const avg=REVIVES.reduce((s,r)=>s+r.chance,0)/REVIVES.length;
     const en=REVIVES.reduce((s,r)=>s+r.energy,0);
+    const selected=REVIVES.filter(r=>SEL[r.id]);
+    const selTotal=selected.reduce((s,r)=>s+priceOf(r),0);
+    const players=new Set(selected.map(r=>r.uid)).size;
     $('rvSummary').textContent=ok+' successful · '+(REVIVES.length-ok)+' failed · avg chance '+avg.toFixed(1)+'% · '+fN(en)+' energy used';
-    let h='<table><thead><tr><th>Patient</th><th class="c">Result</th><th class="r">Chance</th><th class="r">Energy</th><th>When</th><th class="c">Invoice</th></tr></thead><tbody>';
+
+    let h='<div style="padding:8px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border)">';
+    h+='<button onclick="RV.selAll(true)" class="btn" style="padding:4px 10px;font-size:0.7rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)">Select all</button>';
+    h+='<button onclick="RV.selAll(false)" class="btn" style="padding:4px 10px;font-size:0.7rem;background:var(--bg3);color:var(--text3);border:1px solid var(--border)">Clear</button>';
+    h+='<button onclick="RV.bulkPrice()" class="btn" style="padding:4px 10px;font-size:0.7rem;background:var(--bg3);color:var(--amber);border:1px solid var(--border)">💲 Set price for selected</button>';
+    if(selected.length){
+      h+='<span style="font-size:0.74rem;color:var(--text2)">'+selected.length+' selected · '+players+' player'+(players===1?'':'s')+' · <b style="color:var(--green)">'+fmt(selTotal)+'</b></span>';
+      h+='<button onclick="RV.invoiceSelected()" class="btn btn-primary" style="margin-left:auto;padding:5px 12px;font-size:0.74rem">🧾 Invoice selected ('+players+')</button>';
+    }else{
+      h+='<span style="font-size:0.72rem;color:var(--text3);margin-left:auto">Tick rows to combine several revives into one invoice per player.</span>';
+    }
+    h+='</div>';
+
+    h+='<table><thead><tr><th style="width:28px"></th><th>Patient</th><th class="c">Result</th><th class="r">Chance</th><th class="r">Energy</th><th>When</th><th class="r">Price</th><th class="c">Invoice</th></tr></thead><tbody>';
     REVIVES.forEach((r,i)=>{
-      const nm=nameOf(r.uid);
-      h+='<tr><td><a href="https://www.torn.com/profiles.php?XID='+r.uid+'" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;font-weight:600">'+nm+'</a> <span style="font-size:0.68rem;color:var(--text3)">['+r.uid+']</span></td>';
+      const nm=nameOf(r.uid);const custom=PRICES[r.id]!=null;
+      h+='<tr'+(SEL[r.id]?' style="background:rgba(34,197,94,0.06)"':'')+'>';
+      h+='<td class="c">'+(r.success?'<input type="checkbox" '+(SEL[r.id]?'checked':'')+' onchange="RV.toggleSel(\''+r.id+'\')" style="accent-color:var(--green);cursor:pointer">':'')+'</td>';
+      h+='<td><a href="https://www.torn.com/profiles.php?XID='+r.uid+'" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;font-weight:600">'+nm+'</a> <span style="font-size:0.68rem;color:var(--text3)">['+r.uid+']</span>';
+      h+=' <button onclick="RV.selPlayer('+r.uid+')" title="Select all revives for this player" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:0.7rem">⊞</button></td>';
       h+='<td class="c">'+(r.success?'<span class="chip cg">✓ revived</span>':'<span class="chip cr">✗ failed</span>')+'</td>';
       h+='<td class="r" style="font-family:JetBrains Mono,monospace;color:'+(r.chance>=90?'var(--green)':r.chance>=70?'var(--amber)':'var(--red)')+'">'+r.chance.toFixed(2)+'%</td>';
       h+='<td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+r.energy+'</td>';
       h+='<td style="font-size:0.74rem;color:var(--text3);white-space:nowrap">'+dstr(r.ts)+'</td>';
+      h+='<td class="r">'+(r.success?'<input type="text" value="'+priceOf(r)+'" onchange="RV.setPrice(\''+r.id+'\',this.value)" title="Custom price for this revive" style="width:96px;background:var(--bg3);border:1px solid '+(custom?'var(--amber)':'var(--border)')+';border-radius:5px;padding:3px 6px;color:'+(custom?'var(--amber)':'var(--text)')+';font-family:JetBrains Mono,monospace;text-align:right;font-size:0.74rem">':'—')+'</td>';
       h+='<td class="c">'+(r.success?'<button onclick="RV.invoice('+i+')" class="btn" style="padding:3px 10px;font-size:0.7rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)">🧾</button>':'—')+'</td></tr>';
     });
     h+='</tbody></table>';
     $('rvList').innerHTML=h;
   }
 
-  function invoice(i){
-    const r=REVIVES[i];if(!r)return;
-    const price=parseInt(String($('rvPrice').value).replace(/[^0-9]/g,''))||0;
-    const xan=parseInt($('rvXanax').value)||0;
+  function payLine(total){
+    const xu=xanaxUnit();
+    let t='Please pay '+money(total);
+    if(xu>0){const xn=Math.ceil(total/xu);t+=' or '+xn+' Xanax'}
     const myName=$('rvMyName').value.trim()||'sumbawamba';
     const myId=String($('rvMyId').value).replace(/[^0-9]/g,'')||'3585807';
-    const nm=nameOf(r.uid);
-    const priceTxt=price>=1000000?(price/1000000).toFixed(price%1000000?1:0).replace('.0','')+'m':fN(price);
+    t+=' to '+myName+' (https://www.torn.com/profiles.php?XID='+myId+').';
+    return t;
+  }
+
+  function invoice(i){
+    const r=REVIVES[i];if(!r)return;
+    const nm=nameOf(r.uid);const p=priceOf(r);
     let t='Hi '+nm+',\n\n';
     t+='You requested a revival service — you were successfully revived ';
     t+='('+r.chance.toFixed(2)+'% revive chance) on '+dstr(r.ts)+'.\n\n';
-    t+='Please pay '+priceTxt;
-    if(xan>0)t+=' or '+xan+' Xanax';
-    t+=' to '+myName+' (https://www.torn.com/profiles.php?XID='+myId+').\n\n';
+    t+=payLine(p)+'\n\n';
     t+='Thank you for using Sumbawamba revive service!';
+    showInvoice(t);
+  }
+
+  // Combine every selected revive into one invoice per player
+  function invoiceSelected(){
+    const chosen=REVIVES.filter(r=>SEL[r.id]&&r.success);
+    if(!chosen.length){alert('Select at least one successful revive.');return}
+    const byPlayer={};
+    for(const r of chosen){(byPlayer[r.uid]=byPlayer[r.uid]||[]).push(r)}
+    const blocks=[];
+    for(const uid in byPlayer){
+      const list=byPlayer[uid].sort((a,b)=>a.ts-b.ts);
+      const nm=nameOf(uid);
+      let total=0;
+      let t='Hi '+nm+',\n\n';
+      t+='You requested revival service'+(list.length>1?'s':'')+' — here'+(list.length>1?' are':"'s")+' your invoice'+(list.length>1?' details':'')+':\n\n';
+      list.forEach((r,n)=>{
+        const p=priceOf(r);total+=p;
+        t+=(n+1)+'. '+dstr(r.ts)+' — revived ('+r.chance.toFixed(2)+'%) — '+money(p)+'\n';
+      });
+      t+='\n'+(list.length>1?('Total for '+list.length+' revives: '+money(total)+'\n\n'):'\n');
+      t+=payLine(total)+'\n\n';
+      t+='Thank you for using Sumbawamba revive service!';
+      blocks.push(t);
+    }
+    showInvoice(blocks.join('\n\n────────────────────────\n\n'));
+  }
+
+  function showInvoice(t){
     $('rvInvoice').textContent=t;
     $('rvInvoiceBox').style.display='';
     $('rvInvoiceBox').scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -2597,7 +2674,7 @@ const RV=(function(){
     function fb(t){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');$('rvStatusText').textContent='✓ Invoice copied'}catch(e){}document.body.removeChild(ta)}
   }
 
-  return{scan,render,invoice,copyInvoice,saveSettings,loadSettings};
+  return{scan,render,invoice,invoiceSelected,copyInvoice,saveSettings,loadSettings,setPrice,toggleSel,selAll,selPlayer,bulkPrice};
 })();
 
 // ====== UNIFIED FETCH ======
