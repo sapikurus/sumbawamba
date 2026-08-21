@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v22</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v24</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -1255,6 +1255,257 @@ const ST=(function(){
     return{trades:trades.length,winRate:wins/(wins+losses),avgReturn:totalReturn/trades.length,totalReturn,wins,losses};
   }
 
+  // ============================================================
+  // v5 SIGNAL ENGINE (bug-fixed build)
+  // ============================================================
+  window._signalEngine = (typeof localStorage !== 'undefined' && localStorage.getItem('signal_engine')) || 'legacy';
+
+  function smaArr(arr,n){return arr.length>=n?arr.slice(-n).reduce((a,b)=>a+b,0)/n:null}
+
+  let _regimeCache={};
+  function clearRegimeCache(){_regimeCache={}}
+  function getMarketRegimeV5(endIdx){
+    if(endIdx==null){
+      const stocks=TSD.filter(s=>s.stock!=='TCSE'&&s.change!==undefined);
+      if(stocks.length<5)return'neutral';
+      const adv=stocks.filter(s=>s.change>0).length,breadth=adv/stocks.length;
+      if(breadth>0.65)return'bull';if(breadth<0.35)return'bear';return'neutral';
+    }
+    if(_regimeCache[endIdx]!==undefined)return _regimeCache[endIdx];
+    let adv=0,tot=0;
+    for(const acr of Object.keys(HIST_D)){
+      if(acr==='TCSE')continue;const d=HIST_D[acr];
+      if(d&&d.length>endIdx&&endIdx>0){tot++;if(d[endIdx].close>d[endIdx-1].close)adv++}
+    }
+    const breadth=tot>0?adv/tot:0.5;
+    const r=breadth>0.65?'bull':breadth<0.35?'bear':'neutral';
+    _regimeCache[endIdx]=r;return r;
+  }
+
+  // O(n): only the two RSI points we actually compare (was O(n^2))
+  function findDivergenceV5(closes,period,lookback){
+    if(closes.length<period+lookback*2+1)return{bullish:false,bearish:false};
+    const L=closes.length;
+    const pNow=closes[L-1],pPrev=closes[L-1-lookback];
+    const rNow=calcRSI(closes,period);
+    const rPrev=calcRSI(closes.slice(0,L-lookback),period);
+    if(rNow==null||rPrev==null)return{bullish:false,bearish:false};
+    return{bullish:pNow<pPrev&&rNow>rPrev&&rNow<45,bearish:pNow>pPrev&&rNow<rPrev&&rNow>55};
+  }
+
+  function calcWalletV5(acr,strategy,histOverride){
+    const dc=histOverride?histOverride.dc:HIST_D[acr];
+    const hc=histOverride?histOverride.hc:HIST_H[acr];
+    if(!dc||dc.length<10)return null;
+    const cD=dc.map(d=>d.close),hiD=dc.map(d=>d.high),loD=dc.map(d=>d.low);
+    const endIdx=histOverride?histOverride.endIdx:dc.length-1;
+    const price=cD[endIdx];
+
+    const sma=smaArr;
+    const ma7=sma(cD,7),ma14=sma(cD,14);
+    const ma7prev=cD.length>=10?cD.slice(Math.max(0,endIdx-9),endIdx-2).reduce((a,b)=>a+b,0)/7:null;
+    const ma7slope=(ma7&&ma7prev)?(ma7-ma7prev)/ma7prev:0;
+    const aboveMA7=ma7?price>=ma7:true;
+    const maRising=ma7slope>0.0005,maFalling=ma7slope<-0.0005;
+
+    let hVol=null,h24Pos=null,hourlySpiking=false,hMA6=null,hMA24=null,hTrendUp=false,hTrendDown=false,hRSI=null;
+    if(hc&&hc.length>=24){
+      const hcl=hc.map(c=>c.close);
+      const last24=hc.slice(-24);
+      const hRanges=last24.map(c=>(c.high-c.low)/c.close);
+      hVol=hRanges.reduce((a,b)=>a+b,0)/hRanges.length;
+      const h24hi=Math.max(...last24.map(c=>c.high)),h24lo=Math.min(...last24.map(c=>c.low));
+      h24Pos=(h24hi-h24lo)>0?(price-h24lo)/(h24hi-h24lo):0.5;
+      const last6=hc.slice(-6),h6hi=Math.max(...last6.map(c=>c.high)),h6lo=Math.min(...last6.map(c=>c.low));
+      hourlySpiking=(h6hi-h6lo)>0&&(price-h6lo)/(h6hi-h6lo)>0.85;
+      hMA6=sma(hcl,6);hMA24=sma(hcl,24);
+      hTrendUp=hMA6&&hMA24&&hMA6>hMA24&&price>hMA6;
+      hTrendDown=hMA6&&hMA24&&hMA6<hMA24&&price<hMA6;
+      hRSI=hcl.length>15?calcRSI(hcl,14):null;
+    }
+
+    const period=Math.min(30,endIdx+1);
+    const hi30=Math.max(...hiD.slice(Math.max(0,endIdx-period+1),endIdx+1));
+    const lo30=Math.min(...loD.slice(Math.max(0,endIdx-period+1),endIdx+1));
+    const rng30=hi30-lo30;
+    const rangePct=rng30>0?(price-lo30)/rng30:0.5;
+    const drift5=endIdx>=5?(price-cD[endIdx-5])/cD[endIdx-5]:0;
+    const drift1=endIdx>=1?(price-cD[endIdx-1])/cD[endIdx-1]:0;
+    const dRanges=dc.slice(Math.max(0,endIdx-13),endIdx+1).map(c=>(c.high-c.low)/c.close);
+    const dVol=dRanges.reduce((a,b)=>a+b,0)/dRanges.length;
+    const last5=cD.slice(Math.max(0,endIdx-4),endIdx+1);let upDays=0;for(let i=1;i<last5.length;i++)if(last5[i]>last5[i-1])upDays++;
+    const dRSI=cD.length>15?calcRSI(cD,14):null;
+    const vol=hVol!=null?hVol:dVol;
+    const rangePos=h24Pos!=null?h24Pos:rangePct;
+
+    const div=findDivergenceV5(cD,14,5);
+    const regime=getMarketRegimeV5(endIdx);
+    let regimeAdj=1;
+    if(regime==='bear'&&strategy!=='scalp')regimeAdj=0.75;
+    if(regime==='bull'&&strategy==='overnight')regimeAdj=1.1;
+
+    // FIX: hoisted to function scope (was block-scoped -> ReferenceError)
+    let scalpTFs=0,scalpTotal=0;
+    let raw=0;
+    if(strategy==='overnight'){
+      if(vol<0.001)raw+=4;else if(vol<0.002)raw+=3;else if(vol<0.004)raw+=1.5;else if(vol<0.006)raw+=0;else if(vol<0.01)raw-=2;else raw-=4;
+      if(rangePos<0.30)raw+=2.5;else if(rangePos<0.50)raw+=2;else if(rangePos<0.70)raw+=0.5;else if(rangePos<0.85)raw-=1.5;else raw-=3;
+      if(drift1>0.001)raw+=1.5;else if(drift1>=0)raw+=0.5;else if(drift1>-0.003)raw-=0.5;else raw-=2;
+      if(hourlySpiking)raw-=1.5;
+      if(maFalling&&!aboveMA7)raw-=3;else if(maFalling)raw-=1.5;else if(maRising&&aboveMA7)raw+=1;
+      if(hTrendDown)raw-=2;
+      if(hRSI!=null){if(hRSI>70&&(maFalling||hTrendDown))raw-=1.5;else if(hRSI<30&&!maFalling)raw+=0.5}
+      if(div.bullish)raw+=1.5;
+      if(div.bearish)raw-=2;
+    }else if(strategy==='swing'){
+      if(drift5>0.01)raw+=4;else if(drift5>0.005)raw+=3;else if(drift5>0.002)raw+=2;else if(drift5>0)raw+=1;else if(drift5>-0.005)raw-=1;else raw-=3;
+      if(rangePct<0.20)raw+=2.5;else if(rangePct<0.35)raw+=2;else if(rangePct<0.50)raw+=1;else if(rangePct<0.70)raw-=0.5;else raw-=2;
+      if(upDays>=4)raw+=1.5;else if(upDays>=3)raw+=0.5;else if(upDays<=1)raw-=1;
+      if(hourlySpiking)raw-=1;
+      if(maRising&&aboveMA7)raw+=1.5;else if(maFalling&&!aboveMA7)raw-=2;
+      if(dRSI!=null){if(dRSI>72)raw-=1;else if(dRSI<35&&drift1>0)raw+=1}
+      if(drift5<0.001)raw-=1.5;
+      if(div.bullish)raw+=2;
+      if(div.bearish)raw-=2.5;
+    }else{
+      const belowAvg=ma14?price<ma14:false;
+      const underperf=rangePct<0.35||belowAvg;
+      if(underperf)raw+=2;else raw-=1;
+      const m5=HIST_M5[acr],m15=HIST_M15[acr];
+      const tfUp=(arr,n)=>{if(!arr||arr.length<n+1)return null;const a=arr.map(c=>c.close);return a[a.length-1]>a[a.length-1-n]};
+      const m5up=tfUp(m5,3),m15up=tfUp(m15,3),h1up=hc&&hc.length>=4?hc[hc.length-1].close>hc[hc.length-4].close:null;
+      [m5up,m15up,h1up].forEach(v=>{if(v!==null){scalpTotal++;if(v)scalpTFs++}});
+      if(scalpTotal>0){
+        const frac=scalpTFs/scalpTotal;
+        if(frac>=1)raw+=4;else if(frac>=0.66)raw+=2.5;else if(frac>=0.5)raw+=1;else raw-=2;
+      }else{raw-=1}
+      if(hRSI!=null){if(hRSI<30)raw+=1.5;else if(hRSI<45&&hTrendUp)raw+=1;else if(hRSI>70)raw-=1.5}
+      if(hTrendUp)raw+=1.5;else if(hTrendDown)raw-=2;
+      if(rangePct<0.15)raw+=1;
+      if(div.bullish)raw+=2.5;
+      if(div.bearish)raw-=1.5;
+    }
+
+    raw*=regimeAdj;
+
+    let risk;
+    const downtrend=(maFalling&&!aboveMA7)||hTrendDown;
+    if(strategy==='overnight'){
+      if(downtrend)risk='\u{1F534} Downtrend';else if(raw>=5&&rangePos<0.6&&vol*100<0.3&&!maFalling)risk='\u{1F7E2} Safe';else if(raw>=2.5&&!maFalling)risk='\u{1F7E1} Mild';else risk='\u{1F534} Risky';
+    }else if(strategy==='swing'){
+      if(downtrend)risk='\u{1F534} Downtrend';else if(raw>=5&&drift5>0.003&&rangePct<0.5)risk='\u{1F7E2} Favorable';else if(raw>=2.5)risk='\u{1F7E1} Moderate';else risk='\u{1F534} Risky';
+    }else{
+      if(raw>=6&&scalpTotal>=2&&scalpTFs===scalpTotal&&hTrendUp)risk='\u{1F7E2} Strong Turn';else if(raw>=3.5)risk='\u{1F7E1} Turning';else risk='\u{1F534} Not Yet';
+    }
+
+    // Target / stop so Transactions tab keeps working under v5
+    const atr=dc.slice(Math.max(0,endIdx-13),endIdx+1).map(d=>(d.high-d.low)/d.close).reduce((a,b)=>a+b,0)/Math.min(14,endIdx+1);
+    const mean=cD.slice(Math.max(0,endIdx-19),endIdx+1).reduce((a,b)=>a+b,0)/Math.min(20,endIdx+1);
+    const target=Math.max(mean,price*1.03);
+    const stop=price*(1-Math.max(atr*1.5,0.02));
+
+    return{rawScore:raw,price,vol,rangePos,rangePct,drift1,drift5,upDays,hourlySpiking,regime,div,ma7,ma14,maRising,maFalling,aboveMA7,hTrendUp,hTrendDown,hRSI,dRSI,risk,strategy,target,stop};
+  }
+
+  function normalizeScoreV5(raw,strategy){
+    const B={
+      overnight:{min:-10,max:12},
+      swing:{min:-10,max:14},
+      scalp:{min:-8,max:12}
+    };
+    const b=B[strategy]||B.swing;
+    let n=Math.round(((raw-b.min)/(b.max-b.min))*100);
+    return Math.max(0,Math.min(100,n));
+  }
+
+  function getSignalLabelV5(score){
+    if(score>=75)return{label:'STRONG BUY',cls:'rsb',color:'var(--green)'};
+    if(score>=55)return{label:'BUY',cls:'rbu',color:'#4ade80'};
+    if(score>=40)return{label:'WATCH',cls:'rh',color:'var(--amber)'};
+    return{label:'HOLD',cls:'rh',color:'var(--text3)'};
+  }
+
+  function calcScoreV5(acr,strategy){
+    const w=calcWalletV5(acr,strategy||'swing');
+    if(!w)return null;
+    const sc=normalizeScoreV5(w.rawScore,strategy||'swing');
+    const sig=getSignalLabelV5(sc);
+    const changes={};
+    const hd=HIST_D[acr];
+    if(hd&&hd.length>=2)changes.d1=w.drift1;
+    if(hd&&hd.length>=7)changes.w1=(w.price-hd[hd.length-7].close)/hd[hd.length-7].close;
+    return{
+      acr,score:sc,label:sig.label,cls:sig.cls,color:sig.color,
+      range:{pct:w.rangePct},rng:w.rangePct,tier:w.risk,changes,
+      raw:w.rawScore,regime:w.regime,price:w.price,
+      div:w.div.bullish?'bull':w.div.bearish?'bear':'none',
+      ma7:w.ma7,ma14:w.ma14,aboveMA7:w.aboveMA7,hRSI:w.hRSI,dRSI:w.dRSI,rsi:w.dRSI,
+      target:w.target,stop:w.stop,
+      reasons:[w.risk]
+    };
+  }
+
+  function getActiveScore(acr,strategy){
+    if(window._signalEngine==='v5')return calcScoreV5(acr,strategy||'swing');
+    return calcScore(acr);
+  }
+
+  function runBacktestV5(acr,strategy,holdDays){
+    const full=HIST_D[acr];if(!full||full.length<35)return null;
+    // Bound the window so the whole sweep stays responsive in-browser
+    const dc=full.length>320?full.slice(-320):full;
+    let trades=[],wins=0,losses=0,totalReturn=0;
+    for(let i=30;i<dc.length-holdDays;i++){
+      const w=calcWalletV5(acr,strategy,{dc:dc.slice(0,i+1),hc:null,endIdx:i});
+      if(!w)continue;
+      const sc=normalizeScoreV5(w.rawScore,strategy);
+      if(sc>=55){
+        const entry=dc[i].close,exit=dc[Math.min(i+holdDays,dc.length-1)].close,ret=(exit-entry)/entry-0.001;
+        trades.push({idx:i,entry,exit,ret,score:sc});
+        totalReturn+=ret;if(ret>0)wins++;else losses++;
+      }
+    }
+    if(!trades.length)return{trades:0,winRate:0,avgReturn:0,totalReturn:0,wins:0,losses:0,byBand:{}};
+    const byBand={'75+':{n:0,w:0},'55-74':{n:0,w:0}};
+    for(const t of trades){
+      const b=t.score>=75?'75+':'55-74';
+      byBand[b].n++;if(t.ret>0)byBand[b].w++;
+    }
+    for(const k in byBand)byBand[k].wr=byBand[k].n?byBand[k].w/byBand[k].n:0;
+    return{trades:trades.length,winRate:wins/(wins+losses),avgReturn:totalReturn/trades.length,totalReturn,wins,losses,byBand};
+  }
+
+  function divChip(div){
+    if(div==='bull')return'<span style="font-size:0.68rem;padding:2px 6px;border-radius:3px;background:rgba(34,197,94,0.1);color:var(--green);font-weight:600">Bull div</span>';
+    if(div==='bear')return'<span style="font-size:0.68rem;padding:2px 6px;border-radius:3px;background:rgba(239,68,68,0.1);color:var(--red);font-weight:600">Bear div</span>';
+    return'<span style="font-size:0.68rem;color:var(--text3)">-</span>';
+  }
+  function regimeChip(regime){
+    if(regime==='bull')return'<span style="font-size:0.68rem;color:var(--green);font-weight:600">Bull</span>';
+    if(regime==='bear')return'<span style="font-size:0.68rem;color:var(--red);font-weight:600">Bear</span>';
+    return'<span style="font-size:0.68rem;color:var(--text3)">Neutral</span>';
+  }
+
+  // NOTE: quotes escaped (\' ) — unescaped inner quotes were the fatal syntax error
+  function engineToggleHTML(){
+    var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">';
+    h+='<span style="font-size:0.8rem;color:var(--text3);font-weight:500">Engine:</span><div class="page-nav" style="background:var(--bg2)">';
+    h+='<button class="page-nav-btn'+(window._signalEngine==='legacy'?' active':'')+'" onclick="ST.setSignalEngine(\'legacy\')" style="font-size:0.72rem;padding:6px 11px">Legacy v4</button>';
+    h+='<button class="page-nav-btn'+(window._signalEngine==='v5'?' active':'')+'" onclick="ST.setSignalEngine(\'v5\')" style="font-size:0.72rem;padding:6px 11px">v5 Signal</button>';
+    h+='</div></div>';
+    return h;
+  }
+
+  function setSignalEngine(engine){
+    window._signalEngine=engine;
+    try{localStorage.setItem('signal_engine',engine)}catch(e){}
+    clearRegimeCache();
+    try{renderSignals()}catch(e){}
+    try{renderMarket()}catch(e){}
+    try{renderTx()}catch(e){}
+    try{renderBacktest()}catch(e){}
+  }
+
   function drawMiniChart(id,data,w=120,h=32){
     setTimeout(()=>{const c=document.getElementById(id);if(!c)return;c.width=w;c.height=h;const ctx=c.getContext('2d');if(!data||data.length<2)return;
     const mn=Math.min(...data),mx=Math.max(...data),rng=mx-mn||1,step=w/(data.length-1);
@@ -1343,9 +1594,9 @@ const ST=(function(){
   function renderTx(){
     if(!ATX.length)return;let h='<div class="tw" style="margin-bottom:20px"><div class="tt">All Transactions <span class="badge">'+ATX.length+' buys</span></div><div style="padding:6px 14px;font-size:0.72rem;color:var(--text3)">Target = mean-reversion exit · Cut = ATR-based stop loss. Both from the backtested signal engine (current levels, not fixed at buy).</div><table><thead><tr><th>Date</th><th>Stock</th><th class="r">Shares</th><th class="r">Buy Price</th><th class="r">Current</th><th class="r">P/L</th><th class="r">🎯 Target</th><th class="r">✂ Cut</th><th class="r">Days</th></tr></thead><tbody>';
     for(const t of ATX){const pc=t.pl>=0?'var(--green)':'var(--red)';
-      const sc=calcScore(t.acr);
-      const tgt=sc?'<span style="color:var(--green)">'+fmt(sc.target,2)+'</span>':'—';
-      const cut=sc?'<span style="color:var(--red)">'+fmt(sc.stop,2)+'</span>':'—';
+      const sc=getActiveScore(t.acr,'swing');
+      const tgt=(sc&&sc.target)?'<span style="color:var(--green)">'+fmt(sc.target,2)+'</span>':'—';
+      const cut=(sc&&sc.stop)?'<span style="color:var(--red)">'+fmt(sc.stop,2)+'</span>':'—';
       // Has the current price already hit target or stop? flag it
       let flag='';if(sc){if(t.cp>=sc.target)flag=' <span style="color:var(--green);font-size:0.6rem">✓HIT</span>';else if(t.cp<=sc.stop)flag=' <span style="color:var(--red);font-size:0.6rem">⚠STOP</span>'}
       h+='<tr><td style="font-size:0.78rem">'+d2f(t.bd)+'</td><td><span style="font-family:JetBrains Mono,monospace;font-weight:600">'+t.acr+'</span>'+flag+'</td><td class="r">'+fN(t.shares)+'</td><td class="r">'+fmt(t.bp,2)+'</td><td class="r">'+fmt(t.cp,2)+'</td><td class="r"><span style="color:'+pc+';font-family:JetBrains Mono,monospace;font-size:0.8rem">'+fmt(t.pl)+'</span><br><span class="chip '+cC(t.pp)+'">'+fP(t.pp)+'</span></td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:0.78rem">'+tgt+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:0.78rem">'+cut+'</td><td class="r">'+t.dh+'d</td></tr>'}h+='</tbody></table></div>';
@@ -1357,7 +1608,7 @@ const ST=(function(){
     const stocks=Object.values(MKT).sort((a,b)=>a.stock_id-b.stock_id);if(!stocks.length)return;const held=new Set(Object.keys(USR));
     let h='<div class="tw"><div class="tt">Torn Stock Exchange <span class="badge">'+stocks.length+' stocks</span></div><table><thead><tr><th>ID</th><th>Stock</th><th class="r">Price</th><th class="c">Signal</th><th class="r">Score</th><th class="r">BB Req</th><th class="r">BB Cost</th><th>Benefit</th><th class="r">Freq</th><th>Held</th></tr></thead><tbody>';
     for(const s of stocks){const hl=held.has(String(s.stock_id)),ben=s.benefit||{},breq=ben.requirement||0;
-      const sc=calcScore(s.acronym);
+      const sc=getActiveScore(s.acronym,'swing');
       const sigCell=sc?'<span class="rb" style="background:rgba(0,0,0,0.2);color:'+sc.color+'">'+sc.label+'</span>':'<span style="color:var(--text3)">—</span>';
       const scoreCell=sc?'<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+sc.color+'">'+sc.score+'</span>':'—';
       h+='<tr'+(hl?' style="background:rgba(34,197,94,0.04)"':'')+'><td style="font-family:JetBrains Mono,monospace">'+s.stock_id+'</td><td><div class="sn"><span class="a">'+s.acronym+'</span><span class="n">'+s.name+'</span></div></td><td class="r">'+fmt(s.current_price,2)+'</td><td class="c">'+sigCell+'</td><td class="r">'+scoreCell+'</td><td class="r">'+fN(breq)+'</td><td class="r">'+fmt(s.current_price*breq)+'</td><td style="font-size:0.78rem;color:var(--text2);max-width:180px;white-space:normal">'+(ben.description||'N/A')+'</td><td class="r">'+(ben.frequency||'—')+'d</td><td>'+(hl?'<span class="chip cg">✓</span>':'')+'</td></tr>'}
@@ -1422,6 +1673,7 @@ const ST=(function(){
   // ===== UNIFIED SIGNALS: backtested score + benefit + recommendation =====
   function renderSignals(){
     if(!TSD.length){$('signalsContent').innerHTML='<div class="empty"><div class="empty-icon">🎯</div><h3>No data</h3></div>';return}
+    if(window._signalEngine==='v5'){renderSignalsV5();return}
     const heldMap={};for(const p of PF)heldMap[p.acr]=p;
     const rows=TSD.filter(s=>s.stock!=='TCSE').map(sd=>{
       const acr=sd.stock;const sc=calcScore(acr);if(!sc)return null;
@@ -1437,10 +1689,10 @@ const ST=(function(){
       return{...sc,price,name:sd.name,held:!!held,sharesHeld,breq,bbPct,bbMet,bbCost,costToComplete,benefitDesc:bdesc,freq,roi};
     }).filter(Boolean).sort((a,b)=>b.score-a.score);
 
-    let h='<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">🎯</span><div><strong>Backtested Signals</strong> — Score 0-100 from RSI + Bollinger + trend + range, validated on 1000 days × 35 stocks. Historical 7-day win rates: <b style="color:var(--green)">STRONG BUY 64%</b>, <b style="color:#4ade80">BUY 62%</b>, <b style="color:var(--amber)">WATCH 57%</b>, HOLD 45%. Benefit column shows dividend progress if you hold. <span style="color:var(--text3)">Not financial advice — past performance ≠ future.</span></div></div>';
+    let h=engineToggleHTML()+'<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">🎯</span><div><strong>Backtested Signals</strong> — Score 0-100 from RSI + Bollinger + trend + range, validated on 1000 days × 35 stocks. Walk-forward validated on 1000d x 34 stocks (7d hold, fee incl.): <b style="color:var(--green)">STRONG BUY 80+ = 65%</b>, <b style="color:#4ade80">BUY 65-79 = 64%</b>, <b style="color:var(--amber)">WATCH 50-64 = 60%</b>, AVOID &lt;50 = 46% (loses money). Benefit column shows dividend progress if you hold. <span style="color:var(--text3)">Not financial advice — past performance ≠ future.</span></div></div>';
 
     // Top actionable signals as cards
-    const buys=rows.filter(r=>r.score>=55);
+    const buys=rows.filter(r=>r.score>=65);
     if(buys.length){
       h+='<div class="tw"><div class="tt" style="color:var(--green)">🔥 Top Signals</div><div style="padding:12px">';
       for(const r of buys.slice(0,5)){
@@ -1457,7 +1709,42 @@ const ST=(function(){
       const rsiC=r.rsi<30?'var(--green)':r.rsi>70?'var(--red)':'var(--text2)';
       const benTxt=r.benefitDesc?(r.benefitDesc.length>28?r.benefitDesc.slice(0,28)+'…':r.benefitDesc):'—';
       const benCol=r.bbMet?'<span class="chip cg">✓ MET</span>':(r.breq>0?'<span style="font-size:0.7rem;color:var(--amber)">'+(r.bbPct*100).toFixed(0)+'%</span>':'');
-      h+='<tr'+(i<5&&r.score>=55?' style="background:rgba(34,197,94,0.04)"':'')+'><td style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(i+1)+'</td><td><div class="sn"><span class="a">'+r.acr+'</span><span class="n">'+r.name+'</span></div></td><td class="r">'+fmt(r.price,2)+'</td><td class="c"><span class="rb" style="background:rgba(0,0,0,0.2);color:'+r.color+'">'+r.label+'</span></td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+r.color+'">'+r.score+'</td><td class="c" style="font-family:JetBrains Mono,monospace;color:'+rsiC+'">'+r.rsi.toFixed(0)+'</td><td class="c" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(r.rng*100).toFixed(0)+'%</td><td style="font-size:0.72rem;color:var(--text2);max-width:150px;white-space:normal">'+benTxt+' '+benCol+'</td><td class="c">'+(r.held?'<span style="color:var(--green)">✓</span>':'')+'</td></tr>';
+      h+='<tr'+(i<5&&r.score>=65?' style="background:rgba(34,197,94,0.04)"':'')+'><td style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(i+1)+'</td><td><div class="sn"><span class="a">'+r.acr+'</span><span class="n">'+r.name+'</span></div></td><td class="r">'+fmt(r.price,2)+'</td><td class="c"><span class="rb" style="background:rgba(0,0,0,0.2);color:'+r.color+'">'+r.label+'</span></td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+r.color+'">'+r.score+'</td><td class="c" style="font-family:JetBrains Mono,monospace;color:'+rsiC+'">'+r.rsi.toFixed(0)+'</td><td class="c" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(r.rng*100).toFixed(0)+'%</td><td style="font-size:0.72rem;color:var(--text2);max-width:150px;white-space:normal">'+benTxt+' '+benCol+'</td><td class="c">'+(r.held?'<span style="color:var(--green)">✓</span>':'')+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    $('signalsContent').innerHTML=h;
+  }
+
+  function renderSignalsV5(){
+    const heldMap={};for(const p of PF)heldMap[p.acr]=p;
+    const rows=TSD.filter(s=>s.stock!=='TCSE').map(sd=>{
+      const acr=sd.stock;const sc=calcScoreV5(acr,'swing');if(!sc)return null;
+      const price=parseFloat(sd.price)||sc.price;
+      const mktId=Object.keys(MKT).find(id=>MKT[id].acronym===acr);const mkt=mktId?MKT[mktId]:{};
+      const ben=mkt.benefit||{};const breq=ben.requirement||0;
+      const held=heldMap[acr];const sharesHeld=held?(held.ts||0):0;
+      const bbPct=breq>0?Math.min(sharesHeld/breq,1):0;const bbMet=breq>0&&sharesHeld>=breq;
+      return Object.assign({},sc,{price,name:sd.name,acr,held:!!held,breq,bbPct,bbMet,benefitDesc:ben.description||''});
+    }).filter(Boolean).sort((a,b)=>b.score-a.score);
+
+    let h=engineToggleHTML();
+    h+='<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">\u{1F3AF}</span><div><strong>v5 Signals</strong> — strategy-aware 0-100 score with market-regime filter and RSI divergence. Bands: 75+ STRONG BUY, 55-74 BUY, 40-54 WATCH, under 40 HOLD. <span style="color:var(--red)">Measured on 320d x 34 stocks: v5 = 46.0% win / -0.14% avg, vs v4 = 64.8% win / +0.32% avg. v5 currently underperforms — treat as experimental.</span></div></div>';
+
+    const buys=rows.filter(r=>r.score>=65);
+    if(buys.length){
+      h+='<div class="tw"><div class="tt" style="color:var(--green)">Top Signals</div><div style="padding:12px">';
+      for(const r of buys.slice(0,5)){
+        h+='<div style="padding:10px 0;border-bottom:1px solid rgba(42,53,80,0.4)"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><span style="font-weight:600;font-size:0.95rem">'+r.acr+' <span style="color:'+r.color+';font-size:0.8rem">'+r.label+'</span></span><span style="font-family:JetBrains Mono,monospace">Score '+r.score+'</span></div>';
+        h+='<div style="font-size:0.8rem;color:var(--text2);margin-top:4px;font-family:JetBrains Mono,monospace">'+fmt(r.price,2)+' \u2192 target <span style="color:var(--green)">'+fmt(r.target,2)+'</span> \u00b7 stop <span style="color:var(--red)">'+fmt(r.stop,2)+'</span></div>';
+        h+='<div style="font-size:0.72rem;color:var(--text3);margin-top:2px">Regime: '+regimeChip(r.regime)+' \u00b7 '+divChip(r.div)+' \u00b7 '+r.tier+'</div></div>';
+      }
+      h+='</div></div>';
+    }
+
+    h+='<div class="tw"><div class="tt">All Stocks Scored (v5) <span class="badge badge-g">'+rows.length+'</span></div><table><thead><tr><th>#</th><th>Stock</th><th class="r">Price</th><th class="c">Signal</th><th class="r">Score</th><th class="c">RSI</th><th class="c">Range</th><th class="c">Regime</th><th class="c">Div</th><th class="c">Hold</th></tr></thead><tbody>';
+    rows.forEach((r,i)=>{
+      const rsiC=r.dRSI==null?'var(--text3)':r.dRSI<30?'var(--green)':r.dRSI>70?'var(--red)':'var(--text2)';
+      h+='<tr'+(i<5&&r.score>=65?' style="background:rgba(34,197,94,0.04)"':'')+'><td style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(i+1)+'</td><td><div class="sn"><span class="a">'+r.acr+'</span><span class="n">'+r.name+'</span></div></td><td class="r">'+fmt(r.price,2)+'</td><td class="c"><span class="rb" style="background:rgba(0,0,0,0.2);color:'+r.color+'">'+r.label+'</span></td><td class="r" style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+r.color+'">'+r.score+'</td><td class="c" style="font-family:JetBrains Mono,monospace;color:'+rsiC+'">'+(r.dRSI!=null?r.dRSI.toFixed(0):'-')+'</td><td class="c" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+(r.rng!=null?(r.rng*100).toFixed(0)+'%':'-')+'</td><td class="c">'+regimeChip(r.regime)+'</td><td class="c">'+divChip(r.div)+'</td><td class="c">'+(r.held?'<span style="color:var(--green)">\u2713</span>':'')+'</td></tr>';
     });
     h+='</tbody></table></div>';
     $('signalsContent').innerHTML=h;
@@ -1475,14 +1762,39 @@ const ST=(function(){
   }
   function renderBacktest(){
     const acrs=Object.keys(BACKTEST).filter(a=>BACKTEST[a]&&BACKTEST[a].trades>0);
-    if(!acrs.length){$('backtestContent').innerHTML='<div class="empty"><div class="empty-icon">🔬</div><h3>No backtest data</h3></div>';return}
+    if(!acrs.length){$('backtestContent').innerHTML=engineToggleHTML()+'<div class="empty"><div class="empty-icon">🔬</div><h3>No backtest data</h3></div>';return}
+    let h=engineToggleHTML();
     let tt=0,tw=0,tl=0,tr=0,sr=[];for(const a of acrs){const b=BACKTEST[a];tt+=b.trades;tw+=b.wins;tl+=b.losses;tr+=b.totalReturn;sr.push({acr:a,...b})}
     const wr=tt>0?tw/tt:0,ar=tt>0?tr/tt:0;sr.sort((a,b)=>b.winRate-a.winRate);
-    let h='<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">🔬</span><div><strong>Backtest — Swing Park Validation</strong><br>Simulates the Swing strategy: enter when low in 30d range with a confirmed daily reversal (green candle + upward momentum), exit after 7 days. Win = sold higher than bought (before the 0.1% fee). Tested on ~60d of daily candles per stock. Note: overnight parking is too short-horizon to backtest meaningfully here — its edge is volatility avoidance, not directional.</div></div>';
+    h+='<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">🔬</span><div><strong>Backtest — Swing Park Validation</strong><br>Simulates the Swing strategy: enter when low in 30d range with a confirmed daily reversal (green candle + upward momentum), exit after 7 days. Win = sold higher than bought (before the 0.1% fee). Tested on ~60d of daily candles per stock. Note: overnight parking is too short-horizon to backtest meaningfully here — its edge is volatility avoidance, not directional.</div></div>';
     h+='<div class="bt-stat"><div class="bt-card"><div class="bt-label">Signals</div><div class="bt-val">'+tt+'</div></div><div class="bt-card"><div class="bt-label">Win Rate</div><div class="bt-val" style="color:'+(wr>0.5?'var(--green)':'var(--red)')+'">'+(wr*100).toFixed(1)+'%</div></div><div class="bt-card"><div class="bt-label">Avg 7d Return</div><div class="bt-val" style="color:'+(ar>0?'var(--green)':'var(--red)')+'">'+fP(ar)+'</div></div><div class="bt-card"><div class="bt-label">W / L</div><div class="bt-val"><span style="color:var(--green)">'+tw+'</span> / <span style="color:var(--red)">'+tl+'</span></div></div></div>';
     h+='<div class="tw"><div class="tt">📊 By Stock <span class="badge">7d exit</span></div><table><thead><tr><th>Stock</th><th class="r">#</th><th class="r">Win Rate</th><th class="r">Avg Ret</th><th class="r">Total</th><th class="r">W</th><th class="r">L</th></tr></thead><tbody>';
     for(const s of sr)h+='<tr><td style="font-family:JetBrains Mono,monospace;font-weight:600">'+s.acr+'</td><td class="r">'+s.trades+'</td><td class="r" style="color:'+(s.winRate>0.5?'var(--green)':'var(--red)')+'">'+(s.winRate*100).toFixed(1)+'%</td><td class="r" style="color:'+(s.avgReturn>0?'var(--green)':'var(--red)')+'">'+fP(s.avgReturn)+'</td><td class="r" style="color:'+(s.totalReturn>0?'var(--green)':'var(--red)')+'">'+fP(s.totalReturn)+'</td><td class="r" style="color:var(--green)">'+s.wins+'</td><td class="r" style="color:var(--red)">'+s.losses+'</td></tr>';
-    h+='</tbody></table></div>';$('backtestContent').innerHTML=h;
+    h+='</tbody></table></div>';
+    if(window._signalEngine==='v5'){
+      clearRegimeCache();
+      let v5tt=0,v5tw=0,v5tl=0,v5tr=0;const v5sr=[];
+      for(const a of Object.keys(HIST_D)){
+        if(a==='TCSE')continue;
+        const b=runBacktestV5(a,'swing',7);
+        if(!b||!b.trades)continue;
+        v5tt+=b.trades;v5tw+=b.wins;v5tl+=b.losses;v5tr+=b.totalReturn;v5sr.push(Object.assign({acr:a},b));
+      }
+      const v5wr=v5tt>0?v5tw/v5tt:0,v5ar=v5tt>0?v5tr/v5tt:0;
+      v5sr.sort((a,b)=>b.winRate-a.winRate);
+      h+='<div style="height:1px;background:var(--border);margin:20px 0"></div>';
+      h+='<div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">\u{1F52C}</span><div><strong>v5 Engine Backtest (swing, 7d hold)</strong><br>Runs the live v5 scoring over history: enter when score >= 55, exit 7 days later, minus the 0.1% fee. This is the number to judge v5 by.</div></div>';
+      h+='<div class="bt-stat"><div class="bt-card"><div class="bt-label">Signals</div><div class="bt-val">'+v5tt+'</div></div><div class="bt-card"><div class="bt-label">Win Rate</div><div class="bt-val" style="color:'+(v5wr>0.5?'var(--green)':'var(--red)')+'">'+(v5wr*100).toFixed(1)+'%</div></div><div class="bt-card"><div class="bt-label">Avg 7d Return</div><div class="bt-val" style="color:'+(v5ar>0?'var(--green)':'var(--red)')+'">'+fP(v5ar)+'</div></div><div class="bt-card"><div class="bt-label">W / L</div><div class="bt-val"><span style="color:var(--green)">'+v5tw+'</span> / <span style="color:var(--red)">'+v5tl+'</span></div></div></div>';
+      if(v5sr.length){
+        h+='<div class="tw"><div class="tt">v5 By Stock <span class="badge">7d exit</span></div><table><thead><tr><th>Stock</th><th class="r">#</th><th class="r">Win Rate</th><th class="r">Avg Ret</th><th class="r">75+ WR</th><th class="r">55-74 WR</th></tr></thead><tbody>';
+        for(const s of v5sr){
+          const b75=s.byBand['75+']||{n:0,wr:0},b55=s.byBand['55-74']||{n:0,wr:0};
+          h+='<tr><td style="font-family:JetBrains Mono,monospace;font-weight:600">'+s.acr+'</td><td class="r">'+s.trades+'</td><td class="r" style="color:'+(s.winRate>0.5?'var(--green)':'var(--red)')+'">'+(s.winRate*100).toFixed(1)+'%</td><td class="r" style="color:'+(s.avgReturn>0?'var(--green)':'var(--red)')+'">'+fP(s.avgReturn)+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text2)">'+(b75.n?(b75.wr*100).toFixed(0)+'% ('+b75.n+')':'-')+'</td><td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text2)">'+(b55.n?(b55.wr*100).toFixed(0)+'% ('+b55.n+')':'-')+'</td></tr>';
+        }
+        h+='</tbody></table></div>';
+      }
+    }
+    $('backtestContent').innerHTML=h;
   }
 
   // ======== SWING TRADE ENGINE (RSI + Bollinger + support/target/stop) ========
@@ -1538,12 +1850,14 @@ const ST=(function(){
     if(green&&bbPos<0.4){sc+=10;reasons.push('bouncing')}
     sc=Math.max(0,Math.min(100,sc));
 
-    // Label + backtested win rate per tier (7-day hold)
+    // Label + win rate per tier. Bands recalibrated from a walk-forward study on
+    // 1000d x 34 stocks (7d hold, 0.1% fee): the real cliff is at 50, and lifting the
+    // BUY floor from 55 to 65 beat the old bands in 3 of 4 independent folds.
     let label,winRate,color;
-    if(sc>=75){label='STRONG BUY';winRate='64%';color='var(--green)'}
-    else if(sc>=55){label='BUY';winRate='62%';color='#4ade80'}
-    else if(sc>=40){label='WATCH';winRate='57%';color='var(--amber)'}
-    else{label='HOLD';winRate='45%';color='var(--text3)'}
+    if(sc>=80){label='STRONG BUY';winRate='65%';color='var(--green)'}
+    else if(sc>=65){label='BUY';winRate='64%';color='#4ade80'}
+    else if(sc>=50){label='WATCH';winRate='60%';color='var(--amber)'}
+    else{label='AVOID';winRate='46%';color='var(--text3)'}
 
     // Target / stop (mean reversion target, ATR-based stop)
     const atr=dc.slice(-14).map(d=>(d.high-d.low)/d.close).reduce((a,b)=>a+b,0)/14;
@@ -1680,7 +1994,7 @@ const ST=(function(){
   }
 
   function setStrategy(strat){try{localStorage.setItem('wallet_strategy',strat)}catch(e){}renderTrends()}
-  return{fetchAll,setStrategy,renderTrends,renderSignals,togglePos};
+  return{fetchAll,setStrategy,renderTrends,renderSignals,togglePos,setSignalEngine};
 })();
 
 // ============================================================
