@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v24</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v25</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -3032,7 +3032,13 @@ const RV=(function(){
   }
 
   function nameOf(uid){return NAMES[uid]||('Player '+uid)}
-  function dstr(ts){const d=new Date(ts*1000);return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})+' · '+d.toLocaleDateString()}
+  // All revive timestamps render in Torn City Time (GMT) so invoices read the same
+  // for every player regardless of their own timezone.
+  function dstr(ts){
+    const d=new Date(ts*1000),p=n=>String(n).padStart(2,'0');
+    return p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds())+' · '+
+           p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+'/'+String(d.getUTCFullYear()).slice(-2)+' TCT';
+  }
 
   // Per-revive custom prices (survives rescans; keyed by log entry id)
   let PRICES={};try{PRICES=JSON.parse(localStorage.getItem('rv_prices')||'{}')}catch(e){PRICES={}}
@@ -3105,10 +3111,16 @@ const RV=(function(){
 
   function payLine(total){
     const xu=xanaxUnit();
-    let t='Please pay '+money(total);
-    if(xu>0){const xn=Math.ceil(total/xu);t+=' or '+xn+' Xanax'}
     const myName=$('rvMyName').value.trim()||'sumbawamba';
     const myId=String($('rvMyId').value).replace(/[^0-9]/g,'')||'3585807';
+    // Xanax leads as the preferred payment; cash is the fallback.
+    let t;
+    if(xu>0){
+      const xn=Math.ceil(total/xu);
+      t='Please pay '+xn+' Xanax (or '+money(total)+' in cash)';
+    }else{
+      t='Please pay '+money(total);
+    }
     t+=' to '+myName+' (https://www.torn.com/profiles.php?XID='+myId+').';
     return t;
   }
@@ -3139,9 +3151,11 @@ const RV=(function(){
       t+='You requested revival service'+(list.length>1?'s':'')+' — here'+(list.length>1?' are':"'s")+' your invoice'+(list.length>1?' details':'')+':\n\n';
       list.forEach((r,n)=>{
         const p=priceOf(r);total+=p;
-        t+=(n+1)+'. '+dstr(r.ts)+' — revived ('+r.chance.toFixed(2)+'%) — '+money(p)+'\n';
+        const xu_=xanaxUnit();const xl=xu_>0?(Math.ceil(p/xu_)+' Xanax ('+money(p)+')'):money(p);
+        t+=(n+1)+'. '+dstr(r.ts)+' — revived ('+r.chance.toFixed(2)+'%) — '+xl+'\n';
       });
-      t+='\n'+(list.length>1?('Total for '+list.length+' revives: '+money(total)+'\n\n'):'\n');
+      const xuT=xanaxUnit();const totLbl=xuT>0?(Math.ceil(total/xuT)+' Xanax ('+money(total)+')'):money(total);
+      t+='\n'+(list.length>1?('Total for '+list.length+' revives: '+totLbl+'\n\n'):'\n');
       t+=payLine(total)+'\n\n';
       t+='Thank you for using Sumbawamba revive service!';
       blocks.push(t);
