@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v25</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v27</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -811,6 +811,7 @@ const TV=(function(){
   <div class="tw"><div class="tt">⚙️ Invoice Settings</div><div style="padding:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
     <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Price ($)</label><input id="rvPrice" value="1800000" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:130px;font-family:JetBrains Mono,monospace"></div>
     <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">or Xanax</label><input id="rvXanax" type="number" min="0" value="2" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:80px;font-family:JetBrains Mono,monospace"></div>
+    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Failed revives</label><select id="rvFailRate" onchange="RV.saveSettings();RV.render()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:120px;font-size:0.8rem"><option value="free">Free</option><option value="half">Half price</option><option value="full">Full price</option></select></div>
     <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Your name</label><input id="rvMyName" value="sumbawamba" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:150px"></div>
     <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Your Torn ID</label><input id="rvMyId" value="3585807" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:110px;font-family:JetBrains Mono,monospace"></div>
     <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Scan depth</label><select id="rvDepth" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text)"><option value="5">5 pages (~fast)</option><option value="10" selected>10 pages</option><option value="20">20 pages (deep)</option><option value="40">40 pages (slow)</option></select></div>
@@ -820,7 +821,7 @@ const TV=(function(){
     <div id="rvList"><div class="empty" style="padding:26px"><div class="empty-icon">💉</div><p style="color:var(--text3);font-size:0.82rem">Tap <b>Scan Revives</b> to pull your revive history from the Torn log.</p></div></div>
   </div>
 
-  <div id="rvInvoiceBox" style="display:none" class="tw"><div class="tt">🧾 Invoice <span style="margin-left:auto"><button class="btn" onclick="RV.copyInvoice()" style="padding:4px 12px;font-size:0.72rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>📋 Copy</span></button></span></div>
+  <div id="rvInvoiceBox" style="display:none" class="tw"><div class="tt">🧾 Invoice <span id="rvModeTabs" style="display:flex;gap:6px;margin-left:12px"></span> <span style="margin-left:auto"><button class="btn" onclick="RV.copyInvoice()" style="padding:4px 12px;font-size:0.72rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)"><span>📋 Copy</span></button></span></div>
     <div style="padding:14px"><div id="rvInvoice" style="background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:14px;font-family:JetBrains Mono,monospace;font-size:0.82rem;white-space:pre-wrap;color:var(--text2);line-height:1.5"></div></div>
   </div>
 
@@ -2965,7 +2966,8 @@ const RV=(function(){
     try{
       localStorage.setItem('rv_cfg',JSON.stringify({
         price:$('rvPrice').value,xanax:$('rvXanax').value,
-        myName:$('rvMyName').value,myId:$('rvMyId').value,depth:$('rvDepth').value
+        myName:$('rvMyName').value,myId:$('rvMyId').value,depth:$('rvDepth').value,
+        failRate:($('rvFailRate')?$('rvFailRate').value:'free')
       }));
     }catch(e){}
   }
@@ -2977,6 +2979,7 @@ const RV=(function(){
       if(c.myName)$('rvMyName').value=c.myName;
       if(c.myId)$('rvMyId').value=c.myId;
       if(c.depth)$('rvDepth').value=c.depth;
+      if(c.failRate&&$('rvFailRate'))$('rvFailRate').value=c.failRate;
     }catch(e){}
   }
 
@@ -3042,19 +3045,67 @@ const RV=(function(){
 
   // Per-revive custom prices (survives rescans; keyed by log entry id)
   let PRICES={};try{PRICES=JSON.parse(localStorage.getItem('rv_prices')||'{}')}catch(e){PRICES={}}
+  // Event mode: 🎃 rows are priced directly in the unit you pick (Xanax or cash) with NO
+  // conversion — during events the Xanax/cash ratio floats, so a derived figure would lie.
+  let EVT={};try{EVT=JSON.parse(localStorage.getItem('rv_event')||'{}')}catch(e){EVT={}}
+  let UNIT={};try{UNIT=JSON.parse(localStorage.getItem('rv_unit')||'{}')}catch(e){UNIT={}}
+  let FAIL={};try{FAIL=JSON.parse(localStorage.getItem('rv_fail')||'{}')}catch(e){FAIL={}}
   let SEL={};   // revive id -> selected
-  function savePrices(){try{localStorage.setItem('rv_prices',JSON.stringify(PRICES))}catch(e){}}
+  function savePrices(){try{localStorage.setItem('rv_prices',JSON.stringify(PRICES));localStorage.setItem('rv_event',JSON.stringify(EVT));localStorage.setItem('rv_unit',JSON.stringify(UNIT));localStorage.setItem('rv_fail',JSON.stringify(FAIL))}catch(e){}}
   function defaultPrice(){return parseInt(String($('rvPrice').value).replace(/[^0-9]/g,''))||0}
   function priceOf(r){return PRICES[r.id]!=null?PRICES[r.id]:defaultPrice()}
+  function isEvent(r){return !!EVT[r.id]}
+  function unitOf(r){return UNIT[r.id]||'xanax'}
+  // Failed revives: charged free / half / full. Global default with a per-row override,
+  // because whether a client pays for a failed attempt varies by client.
+  function defaultFailRate(){const el=$('rvFailRate');return el?el.value:'free'}
+  function failRateOf(r){return FAIL[r.id]||defaultFailRate()}
+  function rateMult(r){
+    if(r.success)return 1;
+    const m=failRateOf(r);
+    return m==='full'?1:m==='half'?0.5:0;
+  }
+  // Price actually billed for this revive (base price x success multiplier)
+  function effPrice(r){return Math.round(priceOf(r)*rateMult(r))}
+  function billable(r){return effPrice(r)>0}
   // Xanax unit value derived from the default price/xanax pair, so custom prices still
   // get a sensible Xanax equivalent without another settings field.
   function xanaxUnit(){const p=defaultPrice(),x=parseInt($('rvXanax').value)||0;return (p>0&&x>0)?(p/x):0}
   function money(n){return n>=1000000?((n/1000000).toFixed(n%1000000?1:0).replace(/\.0$/,'')+'m'):fN(n)}
 
+  // Label for one revive's price, honouring event mode
+  function priceLabel(r){
+    const p=effPrice(r);
+    if(p<=0)return 'no charge';
+    if(isEvent(r))return unitOf(r)==='xanax'?(p+' Xanax'):money(p);
+    const xu=xanaxUnit();
+    return xu>0?(Math.ceil(p/xu)+' Xanax ('+money(p)+')'):money(p);
+  }
+  // Sum a set of revives into {xanax, cash} buckets (event rows keep their own unit)
+  function totalsOf(list){
+    let xan=0,cash=0;
+    for(const r of list){
+      const p=effPrice(r);
+      if(p<=0)continue;                      // free failed attempts aren't billed
+      if(isEvent(r)){ if(unitOf(r)==='xanax')xan+=p; else cash+=p; }
+      else{ const xu=xanaxUnit(); if(xu>0)xan+=Math.ceil(p/xu); else cash+=p; }
+    }
+    return{xan,cash};
+  }
+  function totalLabel(list){
+    const t=totalsOf(list);const parts=[];
+    if(t.xan>0)parts.push(t.xan+' Xanax');
+    if(t.cash>0)parts.push(money(t.cash));
+    return parts.length?parts.join(' + '):'0';
+  }
+
   function setPrice(id,v){const n=parseInt(String(v).replace(/[^0-9]/g,''));if(isNaN(n)){delete PRICES[id]}else{PRICES[id]=n}savePrices();render()}
+  function toggleEvent(id){EVT[id]=!EVT[id];if(EVT[id]&&!UNIT[id])UNIT[id]='xanax';savePrices();render()}
+  function setUnit(id,u){UNIT[id]=u;savePrices();render()}
+  function cycleFail(id){const o=['free','half','full'];const cur=FAIL[id]||defaultFailRate();FAIL[id]=o[(o.indexOf(cur)+1)%3];savePrices();render()}
   function toggleSel(id){SEL[id]=!SEL[id];render()}
-  function selAll(on){for(const r of REVIVES)if(r.success)SEL[r.id]=on;render()}
-  function selPlayer(uid){for(const r of REVIVES)if(r.success&&r.uid===uid)SEL[r.id]=true;render()}
+  function selAll(on){for(const r of REVIVES)if(r.success||billable(r))SEL[r.id]=on;render()}
+  function selPlayer(uid){for(const r of REVIVES)if((r.success||billable(r))&&r.uid===uid)SEL[r.id]=true;render()}
   function bulkPrice(){
     const chosen=REVIVES.filter(r=>SEL[r.id]);
     if(!chosen.length){alert('Select some revives first.');return}
@@ -3095,72 +3146,130 @@ const RV=(function(){
     REVIVES.forEach((r,i)=>{
       const nm=nameOf(r.uid);const custom=PRICES[r.id]!=null;
       h+='<tr'+(SEL[r.id]?' style="background:rgba(34,197,94,0.06)"':'')+'>';
-      h+='<td class="c">'+(r.success?'<input type="checkbox" '+(SEL[r.id]?'checked':'')+' onchange="RV.toggleSel(\''+r.id+'\')" style="accent-color:var(--green);cursor:pointer">':'')+'</td>';
+      h+='<td class="c"><input type="checkbox" '+(SEL[r.id]?'checked':'')+' onchange="RV.toggleSel(\''+r.id+'\')" style="accent-color:'+(r.success?'var(--green)':'var(--amber)')+';cursor:pointer"></td>';
       h+='<td><a href="https://www.torn.com/profiles.php?XID='+r.uid+'" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;font-weight:600">'+nm+'</a> <span style="font-size:0.68rem;color:var(--text3)">['+r.uid+']</span>';
       h+=' <button onclick="RV.selPlayer('+r.uid+')" title="Select all revives for this player" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:0.7rem">⊞</button></td>';
-      h+='<td class="c">'+(r.success?'<span class="chip cg">✓ revived</span>':'<span class="chip cr">✗ failed</span>')+'</td>';
+      if(r.success){h+='<td class="c"><span class="chip cg">✓ revived</span></td>'}
+      else{
+        const fr=failRateOf(r);
+        const frLbl=fr==='full'?'full price':fr==='half'?'half price':'free';
+        const frCol=fr==='full'?'var(--green)':fr==='half'?'var(--amber)':'var(--text3)';
+        h+='<td class="c"><span class="chip cr">✗ failed</span><br><button onclick="RV.cycleFail(\''+r.id+'\')" title="Click to cycle: free -> half -> full" style="margin-top:3px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 7px;cursor:pointer;font-size:0.66rem;color:'+frCol+'">'+frLbl+'</button></td>';
+      }
       h+='<td class="r" style="font-family:JetBrains Mono,monospace;color:'+(r.chance>=90?'var(--green)':r.chance>=70?'var(--amber)':'var(--red)')+'">'+r.chance.toFixed(2)+'%</td>';
       h+='<td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+r.energy+'</td>';
       h+='<td style="font-size:0.74rem;color:var(--text3);white-space:nowrap">'+dstr(r.ts)+'</td>';
-      h+='<td class="r">'+(r.success?'<input type="text" value="'+priceOf(r)+'" onchange="RV.setPrice(\''+r.id+'\',this.value)" title="Custom price for this revive" style="width:96px;background:var(--bg3);border:1px solid '+(custom?'var(--amber)':'var(--border)')+';border-radius:5px;padding:3px 6px;color:'+(custom?'var(--amber)':'var(--text)')+';font-family:JetBrains Mono,monospace;text-align:right;font-size:0.74rem">':'—')+'</td>';
-      h+='<td class="c">'+(r.success?'<button onclick="RV.invoice('+i+')" class="btn" style="padding:3px 10px;font-size:0.7rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)">🧾</button>':'—')+'</td></tr>';
+      const ev=isEvent(r);
+      let priceCell='—';
+      if(!r.success&&!billable(r)){priceCell='<span style="font-size:0.72rem;color:var(--text3)">no charge</span>'}
+      else if(true){
+        priceCell='<div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">';
+        priceCell+='<button onclick="RV.toggleEvent(\''+r.id+'\')" title="Special event pricing" style="background:'+(ev?'rgba(251,175,36,0.18)':'var(--bg3)')+';border:1px solid '+(ev?'var(--amber)':'var(--border)')+';border-radius:5px;padding:2px 6px;cursor:pointer;font-size:0.72rem;line-height:1.2">🎃</button>';
+        priceCell+='<input type="text" value="'+priceOf(r)+'" onchange="RV.setPrice(\''+r.id+'\',this.value)" title="'+(ev?'Event price in the chosen unit':'Custom price for this revive')+'" style="width:78px;background:var(--bg3);border:1px solid '+(ev?'var(--amber)':(custom?'var(--amber)':'var(--border)'))+';border-radius:5px;padding:3px 6px;color:'+(ev||custom?'var(--amber)':'var(--text)')+';font-family:JetBrains Mono,monospace;text-align:right;font-size:0.74rem">';
+        if(ev){
+          priceCell+='<select onchange="RV.setUnit(\''+r.id+'\',this.value)" title="Unit for this event price" style="background:var(--bg3);border:1px solid var(--amber);border-radius:5px;padding:3px 4px;color:var(--amber);font-size:0.7rem">';
+          priceCell+='<option value="xanax"'+(unitOf(r)==='xanax'?' selected':'')+'>Xan</option>';
+          priceCell+='<option value="cash"'+(unitOf(r)==='cash'?' selected':'')+'>$</option></select>';
+        }
+        priceCell+='</div>';
+      }
+      h+='<td class="r">'+priceCell+'</td>';
+      h+='<td class="c">'+((r.success||billable(r))?'<button onclick="RV.invoice('+i+')" class="btn" style="padding:3px 10px;font-size:0.7rem;background:var(--bg3);color:var(--text);border:1px solid var(--border)">🧾</button>':'—')+'</td></tr>';
     });
     h+='</tbody></table>';
     $('rvList').innerHTML=h;
   }
 
-  function payLine(total){
-    const xu=xanaxUnit();
+  function payLine(list){
     const myName=$('rvMyName').value.trim()||'sumbawamba';
     const myId=String($('rvMyId').value).replace(/[^0-9]/g,'')||'3585807';
-    // Xanax leads as the preferred payment; cash is the fallback.
-    let t;
-    if(xu>0){
-      const xn=Math.ceil(total/xu);
-      t='Please pay '+xn+' Xanax (or '+money(total)+' in cash)';
-    }else{
-      t='Please pay '+money(total);
+    const t=totalsOf(list);
+    let amt;
+    if(t.xan>0&&t.cash>0)amt=t.xan+' Xanax + '+money(t.cash);
+    else if(t.xan>0){
+      const xu=xanaxUnit();
+      // Only offer a cash alternative when no event row is involved — event rates float,
+      // so a converted figure would be misleading.
+      const anyEvent=list.some(isEvent);
+      amt=(!anyEvent&&xu>0)?(t.xan+' Xanax (or '+money(t.xan*xu)+' in cash)'):(t.xan+' Xanax');
     }
-    t+=' to '+myName+' (https://www.torn.com/profiles.php?XID='+myId+').';
+    else amt=money(t.cash);
+    return 'Please pay '+amt+' to '+myName+' (https://www.torn.com/profiles.php?XID='+myId+').';
+  }
+
+  // mode: 'invoice' (payment requested) | 'paid' (payment received / receipt)
+  let RV_MODE='invoice';
+  let RV_LAST=null;   // {uid, ids:[...]} so switching tabs regenerates the same content
+
+  function buildDoc(list,nm,mode){
+    const multi=list.length>1;
+    const evAny=list.some(isEvent);
+    let t;
+    if(mode==='paid'){
+      t='Hi '+nm+',\n\n';
+      t+='Payment received — thank you! Here'+(multi?' are':"'s")+' your receipt'+(multi?' details':'')+':\n\n';
+    }else{
+      t='Hi '+nm+',\n\n';
+      t+='You requested revival service'+(multi?'s':'')+' — here'+(multi?' are':"'s")+' your invoice'+(multi?' details':'')+':\n\n';
+    }
+    list.forEach((r,n)=>{
+      const outcome=r.success?('revived ('+r.chance.toFixed(2)+'% revive chance)')
+                             :('failed attempt ('+r.chance.toFixed(2)+'% revive chance)');
+      t+=(n+1)+'. '+dstr(r.ts)+' — '+outcome+' — '+priceLabel(r)+(isEvent(r)?' [event rate]':'')+'\n';
+    });
+    const totLbl=totalLabel(list);
+    if(multi)t+='\nTotal for '+list.length+' revives: '+totLbl+'\n';
+    if(mode==='paid'){
+      const en=list.reduce((s,r)=>s+(r.energy||0),0);
+      const ok=list.filter(r=>r.success);
+      const avg=list.reduce((s,r)=>s+r.chance,0)/list.length;
+      t+='\nPaid in full: '+totLbl+'\n';
+      t+=ok.length+' of '+list.length+' attempt'+(list.length>1?'s':'')+' successful · average revive chance '+avg.toFixed(2)+'%'+(en?(' · energy used: '+en):'')+'\n\n';
+      t+='Thank you for using Sumbawamba revive service — see you next time!';
+    }else{
+      t+='\n'+payLine(list)+'\n\n';
+      if(evAny)t+='Note: event-rate pricing applies due to high demand.\n\n';
+      t+='Thank you for using Sumbawamba revive service!';
+    }
     return t;
+  }
+
+  function regenerate(){
+    if(!RV_LAST)return;
+    const blocks=[];
+    for(const grp of RV_LAST){
+      const list=grp.ids.map(id=>REVIVES.find(r=>r.id===id)).filter(Boolean).sort((a,b)=>a.ts-b.ts);
+      if(!list.length)continue;
+      blocks.push(buildDoc(list,nameOf(grp.uid),RV_MODE));
+    }
+    $('rvInvoice').textContent=blocks.join('\n\n────────────────────────\n\n');
+    renderModeTabs();
+  }
+  function setMode(m){RV_MODE=m;regenerate()}
+  function renderModeTabs(){
+    const el=$('rvModeTabs');if(!el)return;
+    const mk=(k,label)=>'<button onclick="RV.setMode(\''+k+'\')" style="padding:4px 12px;font-size:0.72rem;border-radius:5px;cursor:pointer;border:1px solid '+(RV_MODE===k?'var(--accent)':'var(--border)')+';background:'+(RV_MODE===k?'var(--accent)':'var(--bg3)')+';color:'+(RV_MODE===k?'#fff':'var(--text2)')+'">'+label+'</button>';
+    el.innerHTML=mk('invoice','🧾 Invoice')+mk('paid','✅ Paid Receipt');
   }
 
   function invoice(i){
     const r=REVIVES[i];if(!r)return;
-    const nm=nameOf(r.uid);const p=priceOf(r);
-    let t='Hi '+nm+',\n\n';
-    t+='You requested a revival service — you were successfully revived ';
-    t+='('+r.chance.toFixed(2)+'% revive chance) on '+dstr(r.ts)+'.\n\n';
-    t+=payLine(p)+'\n\n';
-    t+='Thank you for using Sumbawamba revive service!';
-    showInvoice(t);
+    RV_LAST=[{uid:r.uid,ids:[r.id]}];
+    regenerate();
+    $('rvInvoiceBox').style.display='';
+    $('rvInvoiceBox').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
 
   // Combine every selected revive into one invoice per player
   function invoiceSelected(){
-    const chosen=REVIVES.filter(r=>SEL[r.id]&&r.success);
-    if(!chosen.length){alert('Select at least one successful revive.');return}
+    const chosen=REVIVES.filter(r=>SEL[r.id]&&(r.success||billable(r)));
+    if(!chosen.length){alert('Select at least one revive to bill.');return}
     const byPlayer={};
     for(const r of chosen){(byPlayer[r.uid]=byPlayer[r.uid]||[]).push(r)}
-    const blocks=[];
-    for(const uid in byPlayer){
-      const list=byPlayer[uid].sort((a,b)=>a.ts-b.ts);
-      const nm=nameOf(uid);
-      let total=0;
-      let t='Hi '+nm+',\n\n';
-      t+='You requested revival service'+(list.length>1?'s':'')+' — here'+(list.length>1?' are':"'s")+' your invoice'+(list.length>1?' details':'')+':\n\n';
-      list.forEach((r,n)=>{
-        const p=priceOf(r);total+=p;
-        const xu_=xanaxUnit();const xl=xu_>0?(Math.ceil(p/xu_)+' Xanax ('+money(p)+')'):money(p);
-        t+=(n+1)+'. '+dstr(r.ts)+' — revived ('+r.chance.toFixed(2)+'%) — '+xl+'\n';
-      });
-      const xuT=xanaxUnit();const totLbl=xuT>0?(Math.ceil(total/xuT)+' Xanax ('+money(total)+')'):money(total);
-      t+='\n'+(list.length>1?('Total for '+list.length+' revives: '+totLbl+'\n\n'):'\n');
-      t+=payLine(total)+'\n\n';
-      t+='Thank you for using Sumbawamba revive service!';
-      blocks.push(t);
-    }
-    showInvoice(blocks.join('\n\n────────────────────────\n\n'));
+    RV_LAST=Object.keys(byPlayer).map(uid=>({uid,ids:byPlayer[uid].map(r=>r.id)}));
+    regenerate();
+    $('rvInvoiceBox').style.display='';
+    $('rvInvoiceBox').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
 
   function showInvoice(t){
@@ -3175,7 +3284,7 @@ const RV=(function(){
     function fb(t){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');$('rvStatusText').textContent='✓ Invoice copied'}catch(e){}document.body.removeChild(ta)}
   }
 
-  return{scan,render,invoice,invoiceSelected,copyInvoice,saveSettings,loadSettings,setPrice,toggleSel,selAll,selPlayer,bulkPrice};
+  return{scan,render,invoice,invoiceSelected,copyInvoice,saveSettings,loadSettings,setPrice,toggleSel,selAll,selPlayer,bulkPrice,toggleEvent,setUnit,setMode,cycleFail};
 })();
 
 // ====== UNIFIED FETCH ======
