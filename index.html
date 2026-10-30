@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v27</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v28</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -809,9 +809,9 @@ const TV=(function(){
   <div class="info-box"><span style="font-size:1.1rem;flex-shrink:0">💉</span><div><strong>Revive Log</strong> — Scans your Torn activity log for revives you performed, resolves each patient's name, and lets you generate a payment invoice to copy-paste to them. Names are cached so repeat scans are fast.</div></div>
 
   <div class="tw"><div class="tt">⚙️ Invoice Settings</div><div style="padding:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Price ($)</label><input id="rvPrice" value="1800000" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:130px;font-family:JetBrains Mono,monospace"></div>
-    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">or Xanax</label><input id="rvXanax" type="number" min="0" value="2" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:80px;font-family:JetBrains Mono,monospace"></div>
-    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Failed revives</label><select id="rvFailRate" onchange="RV.saveSettings();RV.render()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:120px;font-size:0.8rem"><option value="free">Free</option><option value="half">Half price</option><option value="full">Full price</option></select></div>
+    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">1 Xanax = ($)</label><input id="rvPrice" value="900000" onchange="RV.saveSettings();RV.render()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:130px;font-family:JetBrains Mono,monospace"></div>
+    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Default fee (Xanax)</label><input id="rvXanax" type="number" min="0" value="2" onchange="RV.saveSettings();RV.render()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:80px;font-family:JetBrains Mono,monospace"></div>
+    <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Failed revives</label><select id="rvFailRate" onchange="RV.saveSettings();RV.render()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:120px;font-size:0.8rem"><option value="free">Free</option><option value="half">Half price</option><option value="full">Full price</option><option value="custom">Custom</option></select> <input id="rvFailCustom" type="text" placeholder="2 or 1.8m" title="Custom failed-attempt price: Xanax (2) or money (1.8m)" onchange="RV.saveSettings();RV.render()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:96px;font-family:JetBrains Mono,monospace"></div>
     <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Your name</label><input id="rvMyName" value="sumbawamba" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:150px"></div>
     <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Your Torn ID</label><input id="rvMyId" value="3585807" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);width:110px;font-family:JetBrains Mono,monospace"></div>
     <div><label style="font-size:0.72rem;color:var(--text3);display:block;margin-bottom:4px">Scan depth</label><select id="rvDepth" onchange="RV.saveSettings()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text)"><option value="5">5 pages (~fast)</option><option value="10" selected>10 pages</option><option value="20">20 pages (deep)</option><option value="40">40 pages (slow)</option></select></div>
@@ -2962,24 +2962,27 @@ const RV=(function(){
   let NAMES={};                 // uid -> name (cached in localStorage)
   try{NAMES=JSON.parse(localStorage.getItem('rv_names')||'{}')}catch(e){NAMES={}}
 
+  // v28 key: the old 'rv_cfg' stored price as a full $ figure, so it is not reused
   function saveSettings(){
     try{
-      localStorage.setItem('rv_cfg',JSON.stringify({
-        price:$('rvPrice').value,xanax:$('rvXanax').value,
+      localStorage.setItem('rv_cfg2',JSON.stringify({
+        rate:$('rvPrice').value,fee:$('rvXanax').value,
         myName:$('rvMyName').value,myId:$('rvMyId').value,depth:$('rvDepth').value,
-        failRate:($('rvFailRate')?$('rvFailRate').value:'free')
+        failRate:($('rvFailRate')?$('rvFailRate').value:'free'),
+        failCustom:($('rvFailCustom')?$('rvFailCustom').value:'')
       }));
     }catch(e){}
   }
   function loadSettings(){
     try{
-      const c=JSON.parse(localStorage.getItem('rv_cfg')||'null');if(!c)return;
-      if(c.price)$('rvPrice').value=c.price;
-      if(c.xanax)$('rvXanax').value=c.xanax;
+      const c=JSON.parse(localStorage.getItem('rv_cfg2')||'null');if(!c)return;
+      if(c.rate)$('rvPrice').value=c.rate;
+      if(c.fee)$('rvXanax').value=c.fee;
       if(c.myName)$('rvMyName').value=c.myName;
       if(c.myId)$('rvMyId').value=c.myId;
       if(c.depth)$('rvDepth').value=c.depth;
       if(c.failRate&&$('rvFailRate'))$('rvFailRate').value=c.failRate;
+      if(c.failCustom!=null&&$('rvFailCustom'))$('rvFailCustom').value=c.failCustom;
     }catch(e){}
   }
 
@@ -3050,36 +3053,62 @@ const RV=(function(){
   let EVT={};try{EVT=JSON.parse(localStorage.getItem('rv_event')||'{}')}catch(e){EVT={}}
   let UNIT={};try{UNIT=JSON.parse(localStorage.getItem('rv_unit')||'{}')}catch(e){UNIT={}}
   let FAIL={};try{FAIL=JSON.parse(localStorage.getItem('rv_fail')||'{}')}catch(e){FAIL={}}
+  let FAILP={};try{FAILP=JSON.parse(localStorage.getItem('rv_failp')||'{}')}catch(e){FAILP={}}
   let SEL={};   // revive id -> selected
-  function savePrices(){try{localStorage.setItem('rv_prices',JSON.stringify(PRICES));localStorage.setItem('rv_event',JSON.stringify(EVT));localStorage.setItem('rv_unit',JSON.stringify(UNIT));localStorage.setItem('rv_fail',JSON.stringify(FAIL))}catch(e){}}
-  function defaultPrice(){return parseInt(String($('rvPrice').value).replace(/[^0-9]/g,''))||0}
+  function savePrices(){try{localStorage.setItem('rv_prices',JSON.stringify(PRICES));localStorage.setItem('rv_event',JSON.stringify(EVT));localStorage.setItem('rv_unit',JSON.stringify(UNIT));localStorage.setItem('rv_fail',JSON.stringify(FAIL));localStorage.setItem('rv_failp',JSON.stringify(FAILP))}catch(e){}}
+  // Xanax is the primary unit. rate() = $ per 1 Xanax (default 900,000). Every price is stored in $.
+  function rate(){return parseInt(String($('rvPrice').value).replace(/[^0-9]/g,''))||900000}
+  function defaultPrice(){return (parseInt($('rvXanax').value)||0)*rate()}
   function priceOf(r){return PRICES[r.id]!=null?PRICES[r.id]:defaultPrice()}
   function isEvent(r){return !!EVT[r.id]}
   function unitOf(r){return UNIT[r.id]||'xanax'}
+  // Parse a typed amount. "2", "2x", "2 xan" = Xanax · "20m" or "20.000k" = $20,000,000.
+  // Plain numbers under 1000 read as Xanax, larger ones as $, unless dflt says which unit.
+  function parseAmt(s,dflt){
+    const t=String(s==null?'':s).trim().toLowerCase().replace(/\s+/g,'');
+    const m=t.match(/^([0-9][0-9.,]*)(xanax|xan|x|m|k)?$/);
+    if(!m)return null;
+    const num=m[1],suf=m[2]||'',whole=parseInt(num.replace(/[.,]/g,''))||0;
+    if(suf==='xanax'||suf==='xan'||suf==='x')return{unit:'xanax',n:whole};
+    if(suf==='m')return{unit:'cash',n:Math.round((parseFloat(num.replace(/,/g,''))||0)*1000000)};
+    if(suf==='k')return{unit:'cash',n:whole*1000};
+    return{unit:dflt||(whole<1000?'xanax':'cash'),n:whole};
+  }
+  // Convert a parsed amount to the stored $ value. Xanax-based amounts and typed money both
+  // round UP to whole Xanax (20m -> 23 Xanax = 20.7m). exact=true keeps typed $ (event rows).
+  function storeMoney(pr,exact){
+    const rt=rate();
+    if(pr.unit==='xanax')return Math.ceil(pr.n)*rt;
+    if(exact)return pr.n;
+    return Math.ceil(pr.n/rt)*rt;
+  }
+  function xanOf(p){const rt=rate();return rt>0?Math.ceil(p/rt):0}
   // Failed revives: charged free / half / full. Global default with a per-row override,
   // because whether a client pays for a failed attempt varies by client.
   function defaultFailRate(){const el=$('rvFailRate');return el?el.value:'free'}
   function failRateOf(r){return FAIL[r.id]||defaultFailRate()}
-  function rateMult(r){
-    if(r.success)return 1;
-    const m=failRateOf(r);
-    return m==='full'?1:m==='half'?0.5:0;
+  // Custom failed-attempt price: global value from settings, optionally overridden per row
+  function globalFailCustom(){const el=$('rvFailCustom');const pr=parseAmt(el?el.value:'',null);return pr?storeMoney(pr,false):0}
+  function failCustomOf(r){return FAILP[r.id]!=null?FAILP[r.id]:globalFailCustom()}
+  // Price actually billed for this revive: successes bill the row price; failed attempts follow the fail rule
+  function effPrice(r){
+    if(r.success)return priceOf(r);
+    const fr=failRateOf(r);
+    if(fr==='custom')return failCustomOf(r);
+    return Math.round(priceOf(r)*(fr==='full'?1:fr==='half'?0.5:0));
   }
-  // Price actually billed for this revive (base price x success multiplier)
-  function effPrice(r){return Math.round(priceOf(r)*rateMult(r))}
   function billable(r){return effPrice(r)>0}
-  // Xanax unit value derived from the default price/xanax pair, so custom prices still
-  // get a sensible Xanax equivalent without another settings field.
-  function xanaxUnit(){const p=defaultPrice(),x=parseInt($('rvXanax').value)||0;return (p>0&&x>0)?(p/x):0}
+  // $ per Xanax (the "1 Xanax = ($)" setting)
+  function xanaxUnit(){return rate()}
   function money(n){return n>=1000000?((n/1000000).toFixed(n%1000000?1:0).replace(/\.0$/,'')+'m'):fN(n)}
 
-  // Label for one revive's price, honouring event mode
+  // Label for one revive's price: Xanax first, $ equivalent in brackets; event rows keep their unit
   function priceLabel(r){
     const p=effPrice(r);
     if(p<=0)return 'no charge';
-    if(isEvent(r))return unitOf(r)==='xanax'?(p+' Xanax'):money(p);
-    const xu=xanaxUnit();
-    return xu>0?(Math.ceil(p/xu)+' Xanax ('+money(p)+')'):money(p);
+    if(isEvent(r))return unitOf(r)==='xanax'?(xanOf(p)+' Xanax'):money(p);
+    const x=xanOf(p);
+    return x>0?(x+' Xanax ('+money(x*rate())+')'):money(p);
   }
   // Sum a set of revives into {xanax, cash} buckets (event rows keep their own unit)
   function totalsOf(list){
@@ -3087,8 +3116,8 @@ const RV=(function(){
     for(const r of list){
       const p=effPrice(r);
       if(p<=0)continue;                      // free failed attempts aren't billed
-      if(isEvent(r)){ if(unitOf(r)==='xanax')xan+=p; else cash+=p; }
-      else{ const xu=xanaxUnit(); if(xu>0)xan+=Math.ceil(p/xu); else cash+=p; }
+      if(isEvent(r)){ if(unitOf(r)==='xanax')xan+=xanOf(p); else cash+=p; }
+      else xan+=xanOf(p);
     }
     return{xan,cash};
   }
@@ -3099,20 +3128,27 @@ const RV=(function(){
     return parts.length?parts.join(' + '):'0';
   }
 
-  function setPrice(id,v){const n=parseInt(String(v).replace(/[^0-9]/g,''));if(isNaN(n)){delete PRICES[id]}else{PRICES[id]=n}savePrices();render()}
+  // Typed price: Xanax (e.g. 2) or money (e.g. 20m). Non-event money rounds up to whole Xanax.
+  function setPrice(id,v){
+    const pr=parseAmt(v,EVT[id]?unitOf({id}):null);
+    if(!pr){delete PRICES[id]}else{PRICES[id]=storeMoney(pr,!!EVT[id]&&unitOf({id})==='cash')}
+    savePrices();render();
+  }
+  function setFailPrice(id,v){const pr=parseAmt(v,null);if(!pr){delete FAILP[id]}else{FAILP[id]=storeMoney(pr,false)}savePrices();render()}
   function toggleEvent(id){EVT[id]=!EVT[id];if(EVT[id]&&!UNIT[id])UNIT[id]='xanax';savePrices();render()}
   function setUnit(id,u){UNIT[id]=u;savePrices();render()}
-  function cycleFail(id){const o=['free','half','full'];const cur=FAIL[id]||defaultFailRate();FAIL[id]=o[(o.indexOf(cur)+1)%3];savePrices();render()}
+  function cycleFail(id){const o=['free','half','full','custom'];const cur=FAIL[id]||defaultFailRate();FAIL[id]=o[(o.indexOf(cur)+1)%4];savePrices();render()}
   function toggleSel(id){SEL[id]=!SEL[id];render()}
   function selAll(on){for(const r of REVIVES)if(r.success||billable(r))SEL[r.id]=on;render()}
   function selPlayer(uid){for(const r of REVIVES)if((r.success||billable(r))&&r.uid===uid)SEL[r.id]=true;render()}
   function bulkPrice(){
     const chosen=REVIVES.filter(r=>SEL[r.id]);
     if(!chosen.length){alert('Select some revives first.');return}
-    const v=prompt('Set price for '+chosen.length+' selected revive(s):', defaultPrice());
+    const v=prompt('Set Xanax price for '+chosen.length+' selected revive(s), or type money (e.g. 20m):', (parseInt($('rvXanax').value)||0));
     if(v==null)return;
-    const n=parseInt(String(v).replace(/[^0-9]/g,''));if(isNaN(n))return;
-    for(const r of chosen)PRICES[r.id]=n;
+    const pr=parseAmt(v,'xanax');if(!pr)return;
+    const val=storeMoney(pr,false);
+    for(const r of chosen)PRICES[r.id]=val;
     savePrices();render();
   }
 
@@ -3126,7 +3162,7 @@ const RV=(function(){
     const avg=REVIVES.reduce((s,r)=>s+r.chance,0)/REVIVES.length;
     const en=REVIVES.reduce((s,r)=>s+r.energy,0);
     const selected=REVIVES.filter(r=>SEL[r.id]);
-    const selTotal=selected.reduce((s,r)=>s+priceOf(r),0);
+    const selTotal=selected.reduce((s,r)=>s+effPrice(r),0);
     const players=new Set(selected.map(r=>r.uid)).size;
     $('rvSummary').textContent=ok+' successful · '+(REVIVES.length-ok)+' failed · avg chance '+avg.toFixed(1)+'% · '+fN(en)+' energy used';
 
@@ -3152,25 +3188,35 @@ const RV=(function(){
       if(r.success){h+='<td class="c"><span class="chip cg">✓ revived</span></td>'}
       else{
         const fr=failRateOf(r);
-        const frLbl=fr==='full'?'full price':fr==='half'?'half price':'free';
-        const frCol=fr==='full'?'var(--green)':fr==='half'?'var(--amber)':'var(--text3)';
-        h+='<td class="c"><span class="chip cr">✗ failed</span><br><button onclick="RV.cycleFail(\''+r.id+'\')" title="Click to cycle: free -> half -> full" style="margin-top:3px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 7px;cursor:pointer;font-size:0.66rem;color:'+frCol+'">'+frLbl+'</button></td>';
+        const frLbl=fr==='full'?'full price':fr==='half'?'half price':fr==='custom'?'custom':'free';
+        const frCol=fr==='free'?'var(--text3)':fr==='half'?'var(--amber)':'var(--green)';
+        h+='<td class="c"><span class="chip cr">✗ failed</span><br><button onclick="RV.cycleFail(\''+r.id+'\')" title="Click to cycle: free -> half -> full -> custom" style="margin-top:3px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 7px;cursor:pointer;font-size:0.66rem;color:'+frCol+'">'+frLbl+'</button>';
+        if(fr==='custom')h+='<br><input type="text" value="'+xanOf(failCustomOf(r))+' Xan" onchange="RV.setFailPrice(\''+r.id+'\',this.value)" title="Custom failed-attempt price for this row: Xanax (2) or money (20m)" style="margin-top:3px;width:78px;background:var(--bg3);border:1px solid var(--amber);border-radius:5px;padding:2px 5px;color:var(--amber);font-family:JetBrains Mono,monospace;text-align:right;font-size:0.68rem">';
+        h+='</td>';
       }
       h+='<td class="r" style="font-family:JetBrains Mono,monospace;color:'+(r.chance>=90?'var(--green)':r.chance>=70?'var(--amber)':'var(--red)')+'">'+r.chance.toFixed(2)+'%</td>';
       h+='<td class="r" style="font-family:JetBrains Mono,monospace;color:var(--text3)">'+r.energy+'</td>';
       h+='<td style="font-size:0.74rem;color:var(--text3);white-space:nowrap">'+dstr(r.ts)+'</td>';
       const ev=isEvent(r);
+      const cashEv=ev&&unitOf(r)==='cash';
+      const pv=priceOf(r);
+      // Xanax is shown first; the $ equivalent sits underneath (event $ rows show their typed figure)
+      const inVal=cashEv?String(pv):(xanOf(pv)+' Xan');
+      const sub=cashEv?'':('≈ '+money(xanOf(pv)*rate()));
       let priceCell='—';
       if(!r.success&&!billable(r)){priceCell='<span style="font-size:0.72rem;color:var(--text3)">no charge</span>'}
-      else if(true){
-        priceCell='<div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">';
+      else{
+        priceCell='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">';
+        priceCell+='<div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">';
         priceCell+='<button onclick="RV.toggleEvent(\''+r.id+'\')" title="Special event pricing" style="background:'+(ev?'rgba(251,175,36,0.18)':'var(--bg3)')+';border:1px solid '+(ev?'var(--amber)':'var(--border)')+';border-radius:5px;padding:2px 6px;cursor:pointer;font-size:0.72rem;line-height:1.2">🎃</button>';
-        priceCell+='<input type="text" value="'+priceOf(r)+'" onchange="RV.setPrice(\''+r.id+'\',this.value)" title="'+(ev?'Event price in the chosen unit':'Custom price for this revive')+'" style="width:78px;background:var(--bg3);border:1px solid '+(ev?'var(--amber)':(custom?'var(--amber)':'var(--border)'))+';border-radius:5px;padding:3px 6px;color:'+(ev||custom?'var(--amber)':'var(--text)')+';font-family:JetBrains Mono,monospace;text-align:right;font-size:0.74rem">';
+        priceCell+='<input type="text" value="'+inVal+'" onchange="RV.setPrice(\''+r.id+'\',this.value)" title="'+(ev?'Event price in the chosen unit (or type 20m for $)':'Xanax price for this revive (or type 20m for $)')+'" style="width:78px;background:var(--bg3);border:1px solid '+(ev?'var(--amber)':(custom?'var(--amber)':'var(--border)'))+';border-radius:5px;padding:3px 6px;color:'+(ev||custom?'var(--amber)':'var(--text)')+';font-family:JetBrains Mono,monospace;text-align:right;font-size:0.74rem">';
         if(ev){
           priceCell+='<select onchange="RV.setUnit(\''+r.id+'\',this.value)" title="Unit for this event price" style="background:var(--bg3);border:1px solid var(--amber);border-radius:5px;padding:3px 4px;color:var(--amber);font-size:0.7rem">';
           priceCell+='<option value="xanax"'+(unitOf(r)==='xanax'?' selected':'')+'>Xan</option>';
           priceCell+='<option value="cash"'+(unitOf(r)==='cash'?' selected':'')+'>$</option></select>';
         }
+        priceCell+='</div>';
+        if(sub)priceCell+='<span style="font-size:0.62rem;color:var(--text3);font-family:JetBrains Mono,monospace">'+sub+'</span>';
         priceCell+='</div>';
       }
       h+='<td class="r">'+priceCell+'</td>';
@@ -3284,7 +3330,7 @@ const RV=(function(){
     function fb(t){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');$('rvStatusText').textContent='✓ Invoice copied'}catch(e){}document.body.removeChild(ta)}
   }
 
-  return{scan,render,invoice,invoiceSelected,copyInvoice,saveSettings,loadSettings,setPrice,toggleSel,selAll,selPlayer,bulkPrice,toggleEvent,setUnit,setMode,cycleFail};
+  return{scan,render,invoice,invoiceSelected,copyInvoice,saveSettings,loadSettings,setPrice,setFailPrice,toggleSel,selAll,selPlayer,bulkPrice,toggleEvent,setUnit,setMode,cycleFail};
 })();
 
 // ====== UNIFIED FETCH ======
