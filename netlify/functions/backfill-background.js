@@ -12,15 +12,19 @@ function isStockEntry(t,d){
   return /\b(sell|sold|buy|bought|purchase)\b/i.test(s)&&!!d&&(d.stock!==undefined||d.shares!==undefined);
 }
 export default async (req) => {
-  let paramKey=null,secretParam=null,resetParam=false;
-  try{ const u=new URL(req.url); paramKey=u.searchParams.get('key'); secretParam=u.searchParams.get('secret'); resetParam=u.searchParams.get('reset')==='1'; }catch(e){}
+  let paramKey=null,secretParam=null,resetParam=false,floorParam=0;
+  try{ const u=new URL(req.url); paramKey=u.searchParams.get('key'); secretParam=u.searchParams.get('secret'); resetParam=u.searchParams.get('reset')==='1'; floorParam=Number(u.searchParams.get('floor')||0); }catch(e){}
   const KEY = paramKey || process.env.TORN_FULL_KEY;
   const SECRET = process.env.SYNC_SECRET;
   if(!KEY) return new Response('No API key provided',{status:500});
   // If a server secret is configured, require it (protects env-key mode). In pure
   // in-app mode (no env secret), the key itself is the credential.
   if(SECRET && !paramKey && secretParam!==SECRET) return new Response('bad secret',{status:403});
-  let params={secret:secretParam,reset:resetParam};
+  let params={secret:secretParam,reset:resetParam,floor:floorParam};
+  // RESCAN mode (?floor=UNIX): walks the log newest-first down to the floor timestamp,
+  // storing any entries not already seen. It does NOT touch backfillCursor, backfillDone
+  // or lastTs, so it cannot disturb the normal sync or the deep backfill.
+  const RESCAN = params.floor>0;
 
   const store = getStore('sumbawamba');
   let hist;
@@ -33,7 +37,7 @@ export default async (req) => {
   await store.setJSON('history',hist);
 
   const seen=new Set(hist.travel.map(t=>t.id).concat(hist.buys.map(b=>b.id), (hist.stockLog||[]).map(s=>s.id)));
-  let to = params.reset ? null : (hist.backfillCursor||null);
+  let to = (params.reset||RESCAN) ? null : (hist.backfillCursor||null);
   const THROTTLE=400, MAX_MS=13*60*1000; // stop before 15min hard limit
   const startedAt=Date.now();
   let totalPages=0, saveEvery=10, sinceSave=0;
@@ -50,9 +54,9 @@ export default async (req) => {
         continue;
       }
       const log=j.log||[];
-      if(log.length===0){ hist.backfillDone=true; hist.backfillCursor=null; break; }
+      if(log.length===0){ if(!RESCAN){ hist.backfillDone=true; hist.backfillCursor=null; } break; }
       for(const e of log){
-        if(e.timestamp>hist.lastTs) hist.lastTs=e.timestamp;
+        if(!RESCAN && e.timestamp>hist.lastTs) hist.lastTs=e.timestamp;
         const t=e.details&&e.details.title, d=e.data||{};
         if(t==='Travel depart'){
           if(!seen.has(e.id)){hist.travel.push({id:e.id,ts:e.timestamp,area:d.destination,origin:d.origin,duration:d.duration||0,method:d.travel_method||''});seen.add(e.id)}
@@ -62,8 +66,10 @@ export default async (req) => {
           if(!seen.has(e.id)){(hist.stockLog=hist.stockLog||[]).push({id:e.id,ts:e.timestamp,title:t,data:d,text:e.text||null});seen.add(e.id)}
         }
       }
-      to=Math.min(...log.map(e=>e.timestamp))-1;
-      hist.backfillCursor=to;
+      const oldestHere=Math.min(...log.map(e=>e.timestamp));
+      to=oldestHere-1;
+      if(RESCAN){ if(oldestHere<=params.floor) break; }
+      else hist.backfillCursor=to;
       totalPages++; sinceSave++;
       // Periodically persist progress so the UI reflects it and nothing is lost
       if(sinceSave>=saveEvery){
@@ -88,12 +94,15 @@ export default async (req) => {
       for(const t of (fresh.travel||[]))if(!known.has(t.id))hist.travel.push(t);
       const knownB=new Set(hist.buys.map(b=>b.id));
       for(const b of (fresh.buys||[]))if(!knownB.has(b.id))hist.buys.push(b);
+      const knownS=new Set((hist.stockLog||[]).map(x=>x.id));
+      for(const x of (fresh.stockLog||[]))if(!knownS.has(x.id)){(hist.stockLog=hist.stockLog||[]).push(x);knownS.add(x.id)}
       if((fresh.lastTs||0)>(hist.lastTs||0))hist.lastTs=fresh.lastTs;
       if(fresh.stats&&(!hist.stats||!hist.stats.length))hist.stats=fresh.stats;
       if(fresh.stocks&&(!hist.stocks||!hist.stocks.length))hist.stocks=fresh.stocks;
     }
   }catch(e){}
 
+  if(hist.stockLog) hist.stockLog.sort((a,b)=>b.ts-a.ts).splice(5000);
   hist.travel.sort((a,b)=>b.ts-a.ts).splice(30000);
   hist.buys.sort((a,b)=>b.ts-a.ts).splice(30000);
   hist.backfillRunning=false;
