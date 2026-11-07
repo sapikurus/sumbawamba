@@ -6,6 +6,11 @@ import { getStore } from '@netlify/blobs';
 
 const AREA_MAP={1:'Torn',2:'Mexico',3:'Cayman Islands',4:'Canada',5:'Hawaii',6:'China',7:'Argentina',8:'Switzerland',9:'Japan',10:'UAE',11:'United Kingdom',12:'South Africa'};
 
+function isStockEntry(t,d){
+  const s=String(t||'');
+  if(/stock|share/i.test(s))return true;
+  return /\b(sell|sold|buy|bought|purchase)\b/i.test(s)&&!!d&&(d.stock!==undefined||d.shares!==undefined);
+}
 export default async (req) => {
   let paramKey=null,secretParam=null,resetParam=false;
   try{ const u=new URL(req.url); paramKey=u.searchParams.get('key'); secretParam=u.searchParams.get('secret'); resetParam=u.searchParams.get('reset')==='1'; }catch(e){}
@@ -53,7 +58,7 @@ export default async (req) => {
           if(!seen.has(e.id)){hist.travel.push({id:e.id,ts:e.timestamp,area:d.destination,origin:d.origin,duration:d.duration||0,method:d.travel_method||''});seen.add(e.id)}
         }else if(t==='Item abroad buy'){
           if(!seen.has(e.id)){hist.buys.push({id:e.id,ts:e.timestamp,item:d.item,qty:d.quantity,costEach:d.cost_each,area:d.area});seen.add(e.id)}
-        }else if(/stock|share/i.test(String(t||''))){
+        }else if(isStockEntry(t,d)){
           if(!seen.has(e.id)){(hist.stockLog=hist.stockLog||[]).push({id:e.id,ts:e.timestamp,title:t,data:d,text:e.text||null});seen.add(e.id)}
         }
       }

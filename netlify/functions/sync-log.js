@@ -5,6 +5,11 @@
 // the 10s function timeout. Scheduled every 6h tops up. Manual requires SYNC_SECRET.
 import { getStore } from '@netlify/blobs';
 
+function isStockEntry(t,d){
+  const s=String(t||'');
+  if(/stock|share/i.test(s))return true;
+  return /\b(sell|sold|buy|bought|purchase)\b/i.test(s)&&!!d&&(d.stock!==undefined||d.shares!==undefined);
+}
 async function doSync(KEY, opts){
   const { reset=false, backfill=false } = opts||{};
   const store = getStore('sumbawamba');
@@ -56,7 +61,7 @@ async function doSync(KEY, opts){
         if(!seen.has(e.id)){newTravel.push({id:e.id,ts:e.timestamp,area:d.destination,origin:d.origin,duration:d.duration||0,method:d.travel_method||''});seen.add(e.id);newOnPage++}
       }else if(t==='Item abroad buy'){
         if(!seen.has(e.id)){newBuys.push({id:e.id,ts:e.timestamp,item:d.item,qty:d.quantity,costEach:d.cost_each,area:d.area});seen.add(e.id);newOnPage++}
-      }else if(/stock|share/i.test(String(t||''))){
+      }else if(isStockEntry(t,d)){
         // Stock buys/sells: stored raw until the exact log wording is confirmed
         if(!seen.has(e.id)){newStockLog.push({id:e.id,ts:e.timestamp,title:t,data:d,text:e.text||null});seen.add(e.id);newOnPage++}
       }
