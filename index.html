@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v36</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v37</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -1580,19 +1580,33 @@ const ST=(function(){
 
   // ======== TAB RENDERERS ========
   // Stock profit summary: open P/L is exact; sold lots keep their buy cost but not their sell price
+  // Realized P/L comes straight from Torn's own sell records (stockLog "Stock sell":
+  // worth, fees and profit). No FIFO matching needed, so it does not depend on which
+  // buys we have stored.
   function profitCard(){
     const H=(typeof TV!=='undefined'&&TV.getHistory)?TV.getHistory():null;
-    if(!H||!H.stocks||!H.stocks.length)return '';
-    const openIds=new Set();
-    for(const sid of Object.keys(USR)){for(const tid of Object.keys((USR[sid]&&USR[sid].transactions)||{}))openIds.add(String(tid))}
-    const closed=H.stocks.filter(t=>!openIds.has(String(t.txId)));
-    const cost=closed.reduce((s,t)=>s+t.shares*t.price,0);
+    const seenS=new Set();
+    const sells=((H&&H.stockLog)||[]).filter(x=>x&&x.title==='Stock sell'&&x.data&&!seenS.has(x.id)&&seenS.add(x.id)).sort((a,b)=>b.ts-a.ts);
     const tv=PF.reduce((s,p)=>s+p.cv,0),ti=PF.reduce((s,p)=>s+p.inv,0),tp=tv-ti;
+    if(!sells.length&&!PF.length)return '';
+    const num=v=>Number(String(v==null?0:v).replace(/,/g,''))||0;
+    const acrMap={};for(const t of ATX){if(t.stockId!=null&&t.acr)acrMap[t.stockId]=t.acr}
+    const acr=id=>(window.STOCK_ACR&&window.STOCK_ACR[id])||acrMap[id]||('#'+id);
+    const realized=sells.reduce((s,x)=>s+num(x.data.profit),0);
+    const fees=sells.reduce((s,x)=>s+num(x.data.fees),0);
+    const proceeds=sells.reduce((s,x)=>s+num(x.data.worth),0);
+    const rc=realized>=0?'var(--green)':'var(--red)';
+    const rows=sells.slice(0,50).map(x=>{const d=x.data,p=num(d.profit),c=p>=0?'var(--green)':'var(--red)';
+      return '<tr><td style="font-size:0.78rem">'+d2f(x.ts)+'</td><td style="font-family:JetBrains Mono,monospace;font-weight:600">'+acr(d.stock)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fN(d.amount)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(num(d.price),2)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(num(d.worth))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:0.76rem;color:var(--text3)">'+fmt(num(d.fees))+'</td><td class="r"><span style="color:'+c+';font-family:JetBrains Mono,monospace">'+(p>=0?'+':'')+fmt(p)+'</span></td></tr>';
+    }).join('');
+    const table=sells.length?'<table><thead><tr><th>Sold</th><th>Stock</th><th class="r">Shares</th><th class="r">Price</th><th class="r">Proceeds</th><th class="r">Fees</th><th class="r">Realized P/L</th></tr></thead><tbody>'+rows+'</tbody></table>':'';
     return '<div class="tw" style="margin-bottom:16px"><div class="tt">💼 Stock Profit</div><div style="padding:10px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">'
+      +'<div class="card"><div class="card-label">Realized P/L</div><div class="card-value" style="color:'+rc+'">'+(realized>=0?'+':'')+fmt(realized)+'</div><div style="font-size:0.7rem;color:var(--text3)">'+sells.length+' sells · from Torn log</div></div>'
+      +'<div class="card"><div class="card-label">Sell proceeds</div><div class="card-value">'+fmt(proceeds)+'</div><div style="font-size:0.7rem;color:var(--text3)">after '+fmt(fees)+' fees</div></div>'
       +'<div class="card"><div class="card-label">Open positions P/L</div><div class="card-value" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+(tp>=0?'+':'')+fmt(tp)+'</div><div style="font-size:0.7rem;color:var(--text3)">on '+fmt(ti)+' cost</div></div>'
-      +'<div class="card"><div class="card-label">Sold lots (cost)</div><div class="card-value">'+fmt(cost)+'</div><div style="font-size:0.7rem;color:var(--text3)">'+closed.length+' lots · sell prices need log</div></div>'
-      +'<div class="card"><div class="card-label">Realized P/L</div><div style="font-size:0.8rem;color:var(--amber)">Needs your log (sell records)</div></div>'
-      +'</div><div style="padding:0 14px 12px;font-size:0.7rem;color:var(--text3)">Partly sold lots stay under open positions. Sold-lot cost comes from your saved history.</div></div>';
+      +'</div>'+(table?'<div style="border-top:1px solid var(--border)">'+table+'</div>':'')
+      +(sells.length>50?'<div style="padding:8px 14px;font-size:0.7rem;color:var(--text3)">Showing latest 50 of '+sells.length+' sells.</div>':'')
+      +'</div>';
   }
   function renderPortfolio(){
     if(!PF.length)return;let h='<div class="tw"><div class="tt">Holdings Overview <span class="badge">'+PF.length+' positions</span></div><div style="padding:8px 14px;font-size:0.75rem;color:var(--text3)">Tap a stock to see its individual buy transactions.</div><table><thead><tr><th>Stock</th><th class="r">Shares</th><th>BB Status</th><th class="r">Avg Buy</th><th class="r">Current</th><th class="r">P/L</th><th class="r">Value</th><th>Dividend</th></tr></thead><tbody>';
