@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v29</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v30</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -2198,12 +2198,63 @@ const DB=(function(){
         work_manual:js.manual||0,work_int:js.intelligence||0,work_end:js.endurance||0
       };
       try{localStorage.setItem('db_current',JSON.stringify(CURRENT))}catch(e){}
+      LIVE_AT=Date.now();
+      loadBaseline(k).then(render);
       render();
       // Fetch historical series (cached day-to-day)
       await fetchSeries(k);
       render();
       $('dbStatusDot').className='status-dot ok';$('dbStatusText').textContent='Dashboard loaded';$('dbLastUpdated').textContent=new Date().toLocaleTimeString();
     }catch(e){$('dbStatusText').textContent='Error: '+e.message}
+  }
+
+  // ---- Wealth: live net worth + change since the 18:00 TCT (GMT) daily cutoff ----
+  const CUTOFF_H=18;
+  let BASE={ts:0,value:null},LIVE_AT=null;
+  try{BASE=JSON.parse(localStorage.getItem('db_nw_base')||'null')||{ts:0,value:null}}catch(e){BASE={ts:0,value:null}}
+  // Most recent 18:00 TCT at or before now, as a unix timestamp (seconds)
+  function lastCutoff(){
+    const n=new Date();
+    const c=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate(),CUTOFF_H,0,0);
+    return Math.floor((c>Date.now()?c-86400000:c)/1000);
+  }
+  async function loadBaseline(k){
+    const ts=lastCutoff();
+    if(BASE.ts===ts&&BASE.value!=null)return;
+    const v=await histStat(k,'networth',ts);
+    if(v!=null&&v>0){BASE={ts,value:v};try{localStorage.setItem('db_nw_base',JSON.stringify(BASE))}catch(e){}}
+  }
+  function wealthInner(){
+    const now=(CURRENT&&CURRENT.networth)||0;
+    const cut=lastCutoff();
+    const cd=new Date(cut*1000),p=n=>String(n).padStart(2,'0');
+    const cutLbl=p(cd.getUTCDate())+'/'+p(cd.getUTCMonth()+1)+' '+p(cd.getUTCHours())+':00 TCT';
+    const base=(BASE.ts===cut&&BASE.value!=null)?BASE.value:null;
+    const liveTxt=LIVE_AT?('● Live · '+new Date(LIVE_AT).toLocaleTimeString()):'● Live · connecting…';
+    let h='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">';
+    h+='<div><div class="card-label">Wealth now</div><div class="card-value" style="color:var(--green)">'+fmt(now)+'</div></div>';
+    h+='<div style="text-align:right"><div class="card-label">Since '+cutLbl+'</div>';
+    if(base!=null){
+      const d=now-base,pct=base?(d/base*100):0,up=d>=0;
+      h+='<div class="card-value" style="color:'+(up?'var(--green)':'var(--red)')+'">'+(up?'▲ +':'▼ ')+fmt(Math.abs(d))+'</div>';
+      h+='<div style="font-size:0.72rem;color:var(--text3)">'+(up?'+':'')+pct.toFixed(2)+'% · base '+fmt(base)+'</div>';
+    }else{
+      h+='<div style="font-size:0.78rem;color:var(--text3)">Loading cutoff value…</div>';
+    }
+    h+='</div></div>';
+    h+='<div style="font-size:0.66rem;color:var(--text3);margin-top:8px">'+liveTxt+' · refreshes every minute while open</div>';
+    return h;
+  }
+  // Refresh only the wealth numbers (no full re-render, so charts don't flicker)
+  async function liveTick(){
+    const k=$('apiKey')?$('apiKey').value.trim():'';
+    if(!k||!CURRENT||document.hidden)return;
+    if(!$('page-dashboard')||!$('page-dashboard').classList.contains('active'))return;
+    try{
+      const j=await fetch('https://api.torn.com/v2/user/personalstats?cat=all&key='+encodeURIComponent(k)).then(r=>r.json());
+      const nw=((j&&j.personalstats)||{}).networth||{};
+      if(nw.total!=null){CURRENT.networth=nw.total;LIVE_AT=Date.now();const el=$('dbWealth');if(el)el.innerHTML=wealthInner()}
+    }catch(e){}
   }
 
   function loadCached(){
@@ -2294,6 +2345,7 @@ const DB=(function(){
     h+=statCard('Inventory',c.nw_inventory,'nw_inventory','var(--amber)',true);
     h+=statCard('Points',c.nw_points,'nw_points','var(--blue)',true);
     h+='</div></div>';
+    h+='<div class="tw"><div class="tt">📊 Wealth</div><div id="dbWealth" style="padding:0 14px 14px;margin-top:12px">'+wealthInner()+'</div></div>';
     h+=multiChart('📈 Net Worth Growth',[{field:'networth',color:'var(--green)',label:'Net Worth'}],true);
     const batD=delta('bat_total');let batDelta='';if(batD!=null&&batD!==0){const up=batD>0;batDelta='<div style="font-size:0.72rem;margin-top:2px;color:'+(up?'var(--green)':'var(--red)')+'">'+(up?'▲ +':'▼ ')+fN(Math.round(Math.abs(batD)))+' / '+(period==='monthly'?'mo':'wk')+'</div>'}
     h+='<div class="tw"><div class="tt">⚔️ Battle Stats</div><div style="padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:12px">';
@@ -2322,6 +2374,7 @@ const DB=(function(){
     $('dbContent').innerHTML=h;
   }
 
+  setInterval(liveTick,60000);
   return{refresh,loadCached,render,setPeriod,hover,hoverOff};
 })();
 
