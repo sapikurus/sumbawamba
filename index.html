@@ -1596,16 +1596,18 @@ const ST=(function(){
     const fees=sells.reduce((s,x)=>s+num(x.data.fees),0);
     const proceeds=sells.reduce((s,x)=>s+num(x.data.worth),0);
     const rc=realized>=0?'var(--green)':'var(--red)';
-    const rows=sells.slice(0,50).map(x=>{const d=x.data,p=num(d.profit),c=p>=0?'var(--green)':'var(--red)';
+    const PER=5, pages=Math.max(1,Math.ceil(sells.length/PER));
+    const pg=Math.max(0,Math.min(window._sellPg||0,pages-1)); window._sellPg=pg;
+    const rows=sells.slice(pg*PER,pg*PER+PER).map(x=>{const d=x.data,p=num(d.profit),c=p>=0?'var(--green)':'var(--red)';
       return '<tr><td style="font-size:0.78rem">'+d2f(x.ts)+'</td><td style="font-family:JetBrains Mono,monospace;font-weight:600">'+acr(d.stock)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fN(d.amount)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(num(d.price),2)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fmt(num(d.worth))+'</td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:0.76rem;color:var(--text3)">'+fmt(num(d.fees))+'</td><td class="r"><span style="color:'+c+';font-family:JetBrains Mono,monospace">'+(p>=0?'+':'')+fmt(p)+'</span></td></tr>';
     }).join('');
-    const table=sells.length?'<table><thead><tr><th>Sold</th><th>Stock</th><th class="r">Shares</th><th class="r">Price</th><th class="r">Proceeds</th><th class="r">Fees</th><th class="r">Realized P/L</th></tr></thead><tbody>'+rows+'</tbody></table>':'';
+    const pager=sells.length>PER?'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 14px;font-size:0.75rem;color:var(--text3)"><span>'+(pg*PER+1)+'–'+Math.min(sells.length,pg*PER+PER)+' of '+sells.length+'</span><span style="display:flex;align-items:center;gap:8px"><button class="btn" style="padding:4px 10px" onclick="ST.sellPage(-1)"'+(pg===0?' disabled':'')+'>‹ Prev</button>'+(pg+1)+' / '+pages+'<button class="btn" style="padding:4px 10px" onclick="ST.sellPage(1)"'+(pg>=pages-1?' disabled':'')+'>Next ›</button></span></div>':'';
+    const table=sells.length?'<table><thead><tr><th>Sold</th><th>Stock</th><th class="r">Shares</th><th class="r">Price</th><th class="r">Proceeds</th><th class="r">Fees</th><th class="r">Realized P/L</th></tr></thead><tbody>'+rows+'</tbody></table>'+pager:'';
     return '<div class="tw" style="margin-bottom:16px"><div class="tt">💼 Stock Profit</div><div style="padding:10px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">'
       +'<div class="card"><div class="card-label">Realized P/L</div><div class="card-value" style="color:'+rc+'">'+(realized>=0?'+':'')+fmt(realized)+'</div><div style="font-size:0.7rem;color:var(--text3)">'+sells.length+' sells · from Torn log</div></div>'
       +'<div class="card"><div class="card-label">Sell proceeds</div><div class="card-value">'+fmt(proceeds)+'</div><div style="font-size:0.7rem;color:var(--text3)">after '+fmt(fees)+' fees</div></div>'
       +'<div class="card"><div class="card-label">Open positions P/L</div><div class="card-value" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+(tp>=0?'+':'')+fmt(tp)+'</div><div style="font-size:0.7rem;color:var(--text3)">on '+fmt(ti)+' cost</div></div>'
       +'</div>'+(table?'<div style="border-top:1px solid var(--border)">'+table+'</div>':'')
-      +(sells.length>50?'<div style="padding:8px 14px;font-size:0.7rem;color:var(--text3)">Showing latest 50 of '+sells.length+' sells.</div>':'')
       +'</div>';
   }
   function renderPortfolio(){
@@ -1625,6 +1627,7 @@ const ST=(function(){
     h+='<tr class="totals-row"><td>TOTAL</td><td></td><td></td><td class="r">'+fmt(ti)+'</td><td></td><td class="r"><span style="color:'+(tp>=0?'var(--green)':'var(--red)')+';font-family:JetBrains Mono,monospace">'+fmt(tp)+'</span><br><span class="chip '+cC(tpp)+'">'+fP(tpp)+'</span></td><td class="r">'+fmt(tv)+'</td><td></td></tr></tbody></table></div>';
     $('portfolioContent').innerHTML=profitCard()+h;
   }
+  function sellPage(d){window._sellPg=(window._sellPg||0)+d;renderPortfolio()}
   function togglePos(acr){if(!window._openPos)window._openPos={};window._openPos[acr]=!window._openPos[acr];renderPortfolio()}
   function renderTx(){
     if(!ATX.length)return;let h='<div class="tw" style="margin-bottom:20px"><div class="tt">All Transactions <span class="badge">'+ATX.length+' buys</span></div><div style="padding:6px 14px;font-size:0.72rem;color:var(--text3)">Target = mean-reversion exit · Cut = ATR-based stop loss. Both from the backtested signal engine (current levels, not fixed at buy).</div><table><thead><tr><th>Date</th><th>Stock</th><th class="r">Shares</th><th class="r">Buy Price</th><th class="r">Current</th><th class="r">P/L</th><th class="r">🎯 Target</th><th class="r">✂ Cut</th><th class="r">Days</th></tr></thead><tbody>';
@@ -2029,7 +2032,7 @@ const ST=(function(){
   }
 
   function setStrategy(strat){try{localStorage.setItem('wallet_strategy',strat)}catch(e){}renderTrends()}
-  return{fetchAll,setStrategy,renderTrends,renderSignals,togglePos,setSignalEngine};
+  return{fetchAll,setStrategy,renderTrends,renderSignals,togglePos,setSignalEngine,sellPage};
 })();
 
 // ============================================================
