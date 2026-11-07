@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v30</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v32</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -794,10 +794,14 @@ const TV=(function(){
 
 <div class="page" id="page-crimes">
 <main class="main">
-  <div class="status-bar"><div><span class="status-dot idle" id="crStatusDot"></span><span id="crStatusText">Load your crime skills</span></div><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-primary" onclick="CR.refresh()" style="padding:5px 12px;font-size:0.75rem"><span>🔄 Load Skills</span></button><span id="crLastUpdated"></span></div></div>
+  <div class="status-bar"><div><span class="status-dot idle" id="crStatusDot"></span><span id="crStatusText">Load your crime skills</span></div><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-primary" onclick="CR.refresh(true)" style="padding:5px 12px;font-size:0.75rem"><span>🔄 Load Skills</span></button><span id="crLastUpdated"></span></div></div>
 
   <div class="tw"><div class="tt">🎯 Crime Skills <span class="badge" id="crSkillCount">—</span> <span style="margin-left:auto;font-size:0.72rem;color:var(--text3);font-weight:400" id="crOffenses"></span></div>
     <div id="crSkills"><div class="empty" style="padding:22px"><p style="color:var(--text3);font-size:0.82rem">Tap Load Skills to pull your crime skill levels.</p></div></div>
+  </div>
+
+  <div class="tw"><div class="tt">🏆 Crime Ranking <span style="margin-left:auto;font-size:0.72rem;color:var(--text3);font-weight:400">lifetime · $ per nerve</span></div>
+    <div id="crAuto" style="padding-top:10px"><div class="empty" style="padding:18px"><p style="color:var(--text3);font-size:0.82rem">Tap Load Skills to pull your crime stats.</p></div></div>
   </div>
 
   <div class="tw"><div class="tt">💰 $ per Nerve Calculator</div>
@@ -2199,6 +2203,8 @@ const DB=(function(){
       };
       try{localStorage.setItem('db_current',JSON.stringify(CURRENT))}catch(e){}
       LIVE_AT=Date.now();
+      recordReading();
+      backfillTotals(k);
       loadBaseline(k).then(render);
       render();
       // Fetch historical series (cached day-to-day)
@@ -2253,8 +2259,99 @@ const DB=(function(){
     try{
       const j=await fetch('https://api.torn.com/v2/user/personalstats?cat=all&key='+encodeURIComponent(k)).then(r=>r.json());
       const nw=((j&&j.personalstats)||{}).networth||{};
-      if(nw.total!=null){CURRENT.networth=nw.total;LIVE_AT=Date.now();const el=$('dbWealth');if(el)el.innerHTML=wealthInner()}
+      if(nw.total!=null){
+        CURRENT.networth=nw.total;CURRENT.nw_bank=nw.bank||0;CURRENT.nw_stocks=nw.stock_market||0;CURRENT.nw_inventory=nw.inventory||0;CURRENT.nw_points=nw.points||0;
+        LIVE_AT=Date.now();recordReading();
+        const el=$('dbWealth');if(el)el.innerHTML=wealthInner();
+        const d=$('dbDaily');if(d)d.innerHTML=dailyInner();
+      }
     }catch(e){}
+  }
+
+  // ---- Daily change per component, measured at each 18:00 TCT cutoff ----
+  // SNAPS[cutoff] = component values at that cutoff. Only readings taken before a cutoff
+  // count as its close, so the record is built from the app's own readings (see notes).
+  const COMP=['networth','nw_bank','nw_stocks','nw_inventory','nw_points'];
+  const COMP_LBL={networth:'Total',nw_bank:'Bank',nw_stocks:'Stocks',nw_inventory:'Inventory',nw_points:'Points'};
+  let SNAPS={},LAST=null;
+  try{SNAPS=JSON.parse(localStorage.getItem('db_snaps')||'{}')||{}}catch(e){SNAPS={}}
+  try{LAST=JSON.parse(localStorage.getItem('db_last')||'null')}catch(e){LAST=null}
+  function saveSnaps(){try{localStorage.setItem('db_snaps',JSON.stringify(SNAPS));localStorage.setItem('db_last',JSON.stringify(LAST))}catch(e){}}
+  function snapOf(){const o={};for(const f of COMP)o[f]=(CURRENT&&CURRENT[f])||0;return o}
+  function recordReading(){
+    if(!CURRENT)return;
+    const cut=lastCutoff();
+    // First reading after a cutoff closes the previous period with the last reading taken before it
+    if(!SNAPS[cut]&&LAST&&LAST.ts<cut)SNAPS[cut]=LAST.comp;
+    LAST={ts:Math.floor(Date.now()/1000),comp:snapOf()};
+    saveSnaps();
+  }
+  // Total only: fill recent cutoffs from Torn's historical net worth (components aren't historical)
+  async function backfillTotals(k){
+    const cut=lastCutoff();
+    for(let i=0;i<=6;i++){
+      const t=cut-i*86400;
+      if(SNAPS[t]&&SNAPS[t].networth!=null)continue;
+      const v=await histStat(k,'networth',t);
+      if(v!=null&&v>0)SNAPS[t]=Object.assign({},SNAPS[t]||{},{networth:v});
+      await new Promise(r=>setTimeout(r,650));
+    }
+    saveSnaps();
+    const el=$('dbDaily');if(el)el.innerHTML=dailyInner();
+  }
+  function monthAvg(){
+    const now=new Date();
+    const keys=Object.keys(SNAPS).map(Number).sort((a,b)=>a-b);
+    const sums={};let days=0;
+    for(let i=1;i<keys.length;i++){
+      const a=keys[i-1],b=keys[i];
+      if(b-a!==86400)continue;
+      const d=new Date(b*1000);
+      if(d.getUTCMonth()!==now.getUTCMonth()||d.getUTCFullYear()!==now.getUTCFullYear())continue;
+      if(COMP.some(f=>SNAPS[a][f]==null||SNAPS[b][f]==null))continue;
+      days++;for(const f of COMP)sums[f]=(sums[f]||0)+(SNAPS[b][f]-SNAPS[a][f]);
+    }
+    if(!days)return null;
+    const avg={};for(const f of COMP)avg[f]=sums[f]/days;
+    return{days,avg};
+  }
+  function dailyInner(){
+    const cut=lastCutoff();
+    const p=n=>String(n).padStart(2,'0');
+    const dayLbl=t=>{const d=new Date(t*1000);return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)};
+    const dash='<span style="color:var(--text3)">—</span>';
+    const cell=v=>{if(v==null)return dash;const up=v>=0;return '<span style="color:'+(up?'var(--green)':'var(--red)')+'">'+(up?'▲ +':'▼ −')+fmt(Math.abs(Math.round(v)))+'</span>'};
+    // Today so far, since the last cutoff
+    const start=SNAPS[cut]||null,cur=CURRENT?snapOf():null;
+    const today={};
+    for(const f of COMP)today[f]=(start&&start[f]!=null&&cur)?cur[f]-start[f]:null;
+    if(today.networth==null&&BASE.ts===cut&&BASE.value!=null&&CURRENT)today.networth=CURRENT.networth-BASE.value;
+    let h='<div style="font-size:0.7rem;color:var(--text3);margin-bottom:6px">Today since 18:00 TCT</div>';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">';
+    for(const f of COMP)h+='<div class="card"><div class="card-label">'+COMP_LBL[f]+'</div><div style="font-family:JetBrains Mono,monospace;font-size:0.82rem;margin-top:4px">'+cell(today[f])+'</div></div>';
+    h+='</div>';
+    // Average per day this month
+    const ma=monthAvg();
+    h+='<div style="font-size:0.7rem;color:var(--text3);margin:12px 0 6px">Average per day this month'+(ma?' ('+ma.days+' day'+(ma.days>1?'s':'')+' tracked)':'')+'</div>';
+    if(ma){
+      h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">';
+      for(const f of COMP)h+='<div class="card"><div class="card-label">'+COMP_LBL[f]+'</div><div style="font-family:JetBrains Mono,monospace;font-size:0.82rem;margin-top:4px">'+cell(ma.avg[f])+'</div><div style="font-size:0.66rem;color:var(--text3);margin-top:2px">≈ '+cell(ma.avg[f]*30)+' / 30d</div></div>';
+      h+='</div>';
+    }else{
+      h+='<div style="font-size:0.78rem;color:var(--text3)">Needs at least two full days of readings. Keep the dashboard open around 18:00 TCT.</div>';
+    }
+    // Last 5 completed days
+    h+='<div style="font-size:0.7rem;color:var(--text3);margin:12px 0 6px">Last 5 days (18:00 → 18:00 TCT)</div>';
+    h+='<div style="overflow-x:auto"><table style="min-width:0;width:100%"><thead><tr><th>Day</th><th class="r">Total</th><th class="r">Bank</th><th class="r">Stocks</th><th class="r">Inv.</th><th class="r">Points</th></tr></thead><tbody>';
+    for(let i=1;i<=5;i++){
+      const end=cut-(i-1)*86400,s=end-86400;
+      const a=SNAPS[s]||{},b=SNAPS[end]||{};
+      h+='<tr><td style="font-size:0.74rem;white-space:nowrap">'+dayLbl(s)+' → '+dayLbl(end)+'</td>';
+      for(const f of COMP){const v=(a[f]!=null&&b[f]!=null)?b[f]-a[f]:null;h+='<td class="r" style="font-family:JetBrains Mono,monospace;font-size:0.72rem">'+cell(v)+'</td>'}
+      h+='</tr>';
+    }
+    h+='</tbody></table></div>';
+    return h;
   }
 
   function loadCached(){
@@ -2345,6 +2442,7 @@ const DB=(function(){
     h+=statCard('Inventory',c.nw_inventory,'nw_inventory','var(--amber)',true);
     h+=statCard('Points',c.nw_points,'nw_points','var(--blue)',true);
     h+='</div></div>';
+    h+='<div class="tw"><div class="tt">📅 Daily Change</div><div id="dbDaily" style="padding:0 14px 14px;margin-top:12px">'+dailyInner()+'</div></div>';
     h+='<div class="tw"><div class="tt">📊 Wealth</div><div id="dbWealth" style="padding:0 14px 14px;margin-top:12px">'+wealthInner()+'</div></div>';
     h+=multiChart('📈 Net Worth Growth',[{field:'networth',color:'var(--green)',label:'Net Worth'}],true);
     const batD=delta('bat_total');let batDelta='';if(batD!=null&&batD!==0){const up=batD>0;batDelta='<div style="font-size:0.72rem;margin-top:2px;color:'+(up?'var(--green)':'var(--red)')+'">'+(up?'▲ +':'▼ ')+fN(Math.round(Math.abs(batD)))+' / '+(period==='monthly'?'mo':'wk')+'</div>'}
@@ -2877,7 +2975,7 @@ const CR=(function(){
   try{CRIMES=JSON.parse(localStorage.getItem('cr_crimes')||'[]')}catch(e){CRIMES=[]}
   function save(){try{localStorage.setItem('cr_crimes',JSON.stringify(CRIMES))}catch(e){}}
 
-  async function refresh(){
+  async function refresh(force){
     const k=$('apiKey').value.trim();
     if(!k){$('crStatusText').textContent='Enter your Torn API key first';return}
     $('crStatusDot').className='status-dot loading';$('crStatusText').textContent='Loading crime skills…';
@@ -2892,6 +2990,8 @@ const CR=(function(){
       ITEMS={};ITEMS_BY_NAME={};
       for(const i of ((it&&it.items)||[])){const v=i.value||{};ITEMS[i.id]={name:i.name,market:v.market_price||0};ITEMS_BY_NAME[i.name.toLowerCase()]={id:i.id,market:v.market_price||0}}
       render();renderList();
+      await loadCrimeStats(k,force);
+      renderAuto();
       $('crStatusDot').className='status-dot ok';$('crStatusText').textContent='Crime data loaded';
       $('crLastUpdated').textContent=new Date().toLocaleTimeString();
     }catch(e){$('crStatusText').textContent='Error: '+e.message}
@@ -2931,6 +3031,73 @@ const CR=(function(){
     }
     $('crSkills').innerHTML=h;
   }
+
+  // ---- Automatic ranking from Torn's own crime data (lifetime, per crime) ----
+  let CRIME_CAT=[],CRIME_DATA={},CR_OPEN={};
+  async function getJ(u){try{const r=await fetch(u);return await r.json()}catch(e){return null}}
+  async function loadCrimeStats(k,force){
+    try{
+      const c=JSON.parse(localStorage.getItem('cr_auto')||'null');
+      if(!force&&c&&c.ts>Date.now()-3600000){CRIME_CAT=c.cat||[];CRIME_DATA=c.data||{};return}
+    }catch(e){}
+    const enc=encodeURIComponent(k);
+    const cat=await getJ('https://api.torn.com/v2/torn/crimes?key='+enc);
+    CRIME_CAT=(cat&&cat.crimes)||[];
+    CRIME_DATA={};
+    for(let i=0;i<CRIME_CAT.length;i++){
+      const c=CRIME_CAT[i];
+      $('crStatusText').textContent='Loading crime stats… '+(i+1)+'/'+CRIME_CAT.length;
+      const sub=await getJ('https://api.torn.com/v2/torn/subcrimes?id='+c.id+'&key='+enc);
+      const st=await getJ('https://api.torn.com/v2/user/crimes?id='+c.id+'&key='+enc);
+      CRIME_DATA[c.id]={subs:(sub&&sub.subcrimes)||[],stats:(st&&st.crimes)||null};
+      await new Promise(r=>setTimeout(r,350));
+    }
+    try{localStorage.setItem('cr_auto',JSON.stringify({ts:Date.now(),cat:CRIME_CAT,data:CRIME_DATA}))}catch(e){}
+  }
+  // Lifetime figures for one crime. Items are valued at market price; untradeable items count as 0.
+  function autoEV(c){
+    const d=CRIME_DATA[c.id];if(!d||!d.stats)return null;
+    const s=d.stats,a=s.attempts||{},nerve=s.nerve_spent||0;
+    const cash=(s.rewards&&s.rewards.money)||0;
+    let items=0;
+    for(const it of ((s.rewards&&s.rewards.items)||[])){const mk=ITEMS[it.id]?ITEMS[it.id].market:0;items+=mk*(it.amount||0)}
+    return{nerve,total:a.total||0,ok:a.success||0,cash,items,
+      perCash:nerve?cash/nerve:0,perItem:nerve?items/nerve:0,perAll:nerve?(cash+items)/nerve:0,
+      uniques:((s.uniques)||[]).length,uniqTotal:c.unique_outcomes_count||0};
+  }
+  function subsHTML(c){
+    const d=CRIME_DATA[c.id]||{};const subs=d.subs||[];
+    const st=((d.stats||{}).attempts||{}).subcrimes||[];
+    if(!subs.length&&!st.length)return '<tr><td colspan="8" style="padding:6px 14px 10px 26px;font-size:0.74rem;color:var(--text3)">No action breakdown for this crime.</td></tr>';
+    const byId={};subs.forEach(s=>byId[s.id]=s);
+    const ids=[...new Set([...subs.map(s=>s.id),...st.map(s=>s.id)])];
+    let h='<tr><td colspan="8" style="padding:0 14px 10px 26px"><table style="min-width:0;width:100%;font-size:0.74rem"><thead><tr><th>Action</th><th class="r">Nerve</th><th class="r">Attempts</th><th class="r">Success</th></tr></thead><tbody>';
+    for(const id of ids){
+      const s=byId[id]||{};const x=st.find(y=>y.id===id)||{};
+      const pct=x.total?(x.success/x.total*100).toFixed(1)+'%':'—';
+      h+='<tr><td>'+(s.name||('#'+id))+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+(s.nerve_cost!=null?s.nerve_cost:'—')+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+fN(x.total||0)+'</td><td class="r" style="font-family:JetBrains Mono,monospace">'+pct+'</td></tr>';
+    }
+    return h+'</tbody></table></td></tr>';
+  }
+  function renderAuto(){
+    const el=$('crAuto');if(!el)return;
+    if(!CRIME_CAT.length){el.innerHTML='<div class="empty" style="padding:18px"><p style="color:var(--text3);font-size:0.82rem">Tap Load Skills to pull your crime stats.</p></div>';return}
+    const rows=CRIME_CAT.map(c=>({c,e:autoEV(c)})).filter(r=>r.e&&r.e.nerve>0);
+    rows.sort((a,b)=>b.e.perAll-a.e.perAll);
+    const best=rows.length&&rows[0].e.perAll>0?rows[0].c.id:null;
+    const cell=(v,extra)=>'<td class="r" style="font-family:JetBrains Mono,monospace;'+(extra||'')+'">'+v+'</td>';
+    let h='<div style="padding:0 14px 10px;font-size:0.72rem;color:var(--text3)">Lifetime from your own stats. $ per nerve = cash plus items at market price, divided by nerve spent. Tap a crime for its actions.</div>';
+    h+='<div style="overflow-x:auto;padding:0 6px 10px"><table style="min-width:0;width:100%"><thead><tr><th>Crime</th><th class="r">Attempts</th><th class="r">Success</th><th class="r">Nerve</th><th class="r">Cash/N</th><th class="r">Items/N</th><th class="r">Total/N</th><th class="r">Uniques</th></tr></thead><tbody>';
+    for(const {c,e} of rows){
+      const pct=e.total?(e.ok/e.total*100).toFixed(1)+'%':'—';
+      const isB=c.id===best;
+      h+='<tr onclick="CR.toggleAuto('+c.id+')" style="cursor:pointer;'+(isB?'background:rgba(52,208,88,0.06)':'')+'"><td style="font-weight:600">'+(CR_OPEN[c.id]?'▼ ':'▶ ')+(isB?'🏆 ':'')+c.name+'</td>';
+      h+=cell(fN(e.total))+cell(pct)+cell(fN(e.nerve))+cell(fmt(Math.round(e.perCash)))+cell(fmt(Math.round(e.perItem)))+cell(fmt(Math.round(e.perAll)),'color:var(--green);font-weight:700')+cell(e.uniques+'/'+e.uniqTotal)+'</tr>';
+      if(CR_OPEN[c.id])h+=subsHTML(c);
+    }
+    el.innerHTML=h+'</tbody></table></div>';
+  }
+  function toggleAuto(id){CR_OPEN[id]=!CR_OPEN[id];renderAuto()}
 
   function addCrime(){
     const name=$('crName').value.trim();if(!name){$('crStatusText').textContent='Give the crime a name';return}
@@ -3018,7 +3185,7 @@ const CR=(function(){
     $('crList').innerHTML=h;
   }
 
-  return{refresh,render,renderList,addCrime,delCrime,updCrime,addDrop,updDrop,delDrop};
+  return{refresh,render,renderList,addCrime,delCrime,updCrime,addDrop,updDrop,delDrop,renderAuto,toggleAuto};
 })();
 
 const RV=(function(){
