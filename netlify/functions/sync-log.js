@@ -20,7 +20,7 @@ async function doSync(KEY, opts){
   if(!hist.stocks) hist.stocks=[];
   if(hist.backfillCursor===undefined) hist.backfillCursor=null;
   if(hist.syncCursor===undefined) hist.syncCursor=null;
-  const seen = new Set(hist.travel.map(t=>t.id).concat(hist.buys.map(b=>b.id)));
+  const seen = new Set(hist.travel.map(t=>t.id).concat(hist.buys.map(b=>b.id), (hist.stockLog||[]).map(s=>s.id)));
 
   let newTravel=[],newBuys=[],newStockLog=[];
   // Aggressive backfill: many pages per invocation with light throttle.

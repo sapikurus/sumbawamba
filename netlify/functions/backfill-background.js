@@ -32,7 +32,7 @@ export default async (req) => {
   hist.backfillRunning=true; hist.backfillError=null;
   await store.setJSON('history',hist);
 
-  const seen=new Set(hist.travel.map(t=>t.id).concat(hist.buys.map(b=>b.id)));
+  const seen=new Set(hist.travel.map(t=>t.id).concat(hist.buys.map(b=>b.id), (hist.stockLog||[]).map(s=>s.id)));
   let to = params.reset ? null : (hist.backfillCursor||null);
   const THROTTLE=400, MAX_MS=13*60*1000; // stop before 15min hard limit
   const startedAt=Date.now();
