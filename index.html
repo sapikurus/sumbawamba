@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v35</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v36</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -743,7 +743,7 @@ const TV=(function(){
   }
   function toggleStockHist(){window._stockHistOpen=!window._stockHistOpen;renderStockHist()}
 
-  return{refresh,refreshAndSync,renderItems,loadHistory,syncNow,resetHistory,resumeBackfill,renderStockHist,renderPeriod,setPeriodType,periodNav,loadPricesAndRender,toggleStockHist,toggleTrip,tripPage,toggleAwards};
+  return{refresh,refreshAndSync,renderItems,loadHistory,syncNow,resetHistory,resumeBackfill,renderStockHist,renderPeriod,setPeriodType,periodNav,loadPricesAndRender,toggleStockHist,toggleTrip,tripPage,toggleAwards,getHistory:()=>HISTORY};
 })();
 </script>
 
@@ -1581,10 +1581,11 @@ const ST=(function(){
   // ======== TAB RENDERERS ========
   // Stock profit summary: open P/L is exact; sold lots keep their buy cost but not their sell price
   function profitCard(){
-    if(!HISTORY||!HISTORY.stocks||!HISTORY.stocks.length)return '';
+    const H=(typeof TV!=='undefined'&&TV.getHistory)?TV.getHistory():null;
+    if(!H||!H.stocks||!H.stocks.length)return '';
     const openIds=new Set();
     for(const sid of Object.keys(USR)){for(const tid of Object.keys((USR[sid]&&USR[sid].transactions)||{}))openIds.add(String(tid))}
-    const closed=HISTORY.stocks.filter(t=>!openIds.has(String(t.txId)));
+    const closed=H.stocks.filter(t=>!openIds.has(String(t.txId)));
     const cost=closed.reduce((s,t)=>s+t.shares*t.price,0);
     const tv=PF.reduce((s,p)=>s+p.cv,0),ti=PF.reduce((s,p)=>s+p.inv,0),tp=tv-ti;
     return '<div class="tw" style="margin-bottom:16px"><div class="tt">💼 Stock Profit</div><div style="padding:10px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">'
