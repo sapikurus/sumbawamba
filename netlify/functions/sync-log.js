@@ -17,7 +17,7 @@ async function doSync(KEY, opts){
   if(hist.syncCursor===undefined) hist.syncCursor=null;
   const seen = new Set(hist.travel.map(t=>t.id).concat(hist.buys.map(b=>b.id)));
 
-  let newTravel=[],newBuys=[];
+  let newTravel=[],newBuys=[],newStockLog=[];
   // Aggressive backfill: many pages per invocation with light throttle.
   // Torn allows ~100 req/min. At 350ms/page = ~170/min sustained, but we only
   // run short bursts per invocation then pause, keeping the average safe.
@@ -56,6 +56,9 @@ async function doSync(KEY, opts){
         if(!seen.has(e.id)){newTravel.push({id:e.id,ts:e.timestamp,area:d.destination,origin:d.origin,duration:d.duration||0,method:d.travel_method||''});seen.add(e.id);newOnPage++}
       }else if(t==='Item abroad buy'){
         if(!seen.has(e.id)){newBuys.push({id:e.id,ts:e.timestamp,item:d.item,qty:d.quantity,costEach:d.cost_each,area:d.area});seen.add(e.id);newOnPage++}
+      }else if(/stock|share/i.test(String(t||''))){
+        // Stock buys/sells: stored raw until the exact log wording is confirmed
+        if(!seen.has(e.id)){newStockLog.push({id:e.id,ts:e.timestamp,title:t,data:d,text:e.text||null});seen.add(e.id);newOnPage++}
       }
       // Track how far back this page reached relative to what we already have
       if(!backfill && e.timestamp<=hist.lastTs) reachedKnown=true;
@@ -76,6 +79,7 @@ async function doSync(KEY, opts){
 
   // Merge
   hist.travel = newTravel.concat(hist.travel).sort((a,b)=>b.ts-a.ts).slice(0,20000);
+  hist.stockLog = newStockLog.concat(hist.stockLog||[]).sort((a,b)=>b.ts-a.ts).slice(0,5000);
   hist.buys = newBuys.concat(hist.buys).sort((a,b)=>b.ts-a.ts).slice(0,20000);
 
   // CRITICAL: only advance lastTs if this scan actually connected back to data we already

@@ -53,6 +53,8 @@ export default async (req) => {
           if(!seen.has(e.id)){hist.travel.push({id:e.id,ts:e.timestamp,area:d.destination,origin:d.origin,duration:d.duration||0,method:d.travel_method||''});seen.add(e.id)}
         }else if(t==='Item abroad buy'){
           if(!seen.has(e.id)){hist.buys.push({id:e.id,ts:e.timestamp,item:d.item,qty:d.quantity,costEach:d.cost_each,area:d.area});seen.add(e.id)}
+        }else if(/stock|share/i.test(String(t||''))){
+          if(!seen.has(e.id)){(hist.stockLog=hist.stockLog||[]).push({id:e.id,ts:e.timestamp,title:t,data:d,text:e.text||null});seen.add(e.id)}
         }
       }
       to=Math.min(...log.map(e=>e.timestamp))-1;

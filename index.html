@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v33</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v35</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -804,16 +804,6 @@ const TV=(function(){
     <div id="crAuto" style="padding-top:10px"><div class="empty" style="padding:18px"><p style="color:var(--text3);font-size:0.82rem">Tap Load Skills to pull your crime stats.</p></div></div>
   </div>
 
-  <div class="tw"><div class="tt">💰 $ per Nerve Calculator</div>
-    <div style="padding:10px 14px;font-size:0.76rem;color:var(--text3)">Drop values use <b>live market prices</b>. Drop rates aren't in Torn's API, so enter what you actually observe — the numbers are yours to tune, and results update instantly.</div>
-    <div style="padding:0 14px 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-      <div><label style="font-size:0.7rem;color:var(--text3);display:block;margin-bottom:3px">Crime / subcrime</label><input id="crName" placeholder="Forgery — Passport" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);width:190px;font-size:0.8rem"></div>
-      <div><label style="font-size:0.7rem;color:var(--text3);display:block;margin-bottom:3px">Nerve</label><input id="crNerve" type="number" min="1" value="5" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);width:70px;font-family:JetBrains Mono,monospace;text-align:right"></div>
-      <div><label style="font-size:0.7rem;color:var(--text3);display:block;margin-bottom:3px">Success %</label><input id="crSuccess" type="number" min="1" max="100" value="90" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);width:80px;font-family:JetBrains Mono,monospace;text-align:right"></div>
-      <button class="btn btn-primary" onclick="CR.addCrime()" style="padding:6px 14px;font-size:0.78rem"><span>➕ Add Crime</span></button>
-    </div>
-    <div id="crList"></div>
-  </div>
 </main>
 </div>
 
@@ -1589,6 +1579,20 @@ const ST=(function(){
   }
 
   // ======== TAB RENDERERS ========
+  // Stock profit summary: open P/L is exact; sold lots keep their buy cost but not their sell price
+  function profitCard(){
+    if(!HISTORY||!HISTORY.stocks||!HISTORY.stocks.length)return '';
+    const openIds=new Set();
+    for(const sid of Object.keys(USR)){for(const tid of Object.keys((USR[sid]&&USR[sid].transactions)||{}))openIds.add(String(tid))}
+    const closed=HISTORY.stocks.filter(t=>!openIds.has(String(t.txId)));
+    const cost=closed.reduce((s,t)=>s+t.shares*t.price,0);
+    const tv=PF.reduce((s,p)=>s+p.cv,0),ti=PF.reduce((s,p)=>s+p.inv,0),tp=tv-ti;
+    return '<div class="tw" style="margin-bottom:16px"><div class="tt">💼 Stock Profit</div><div style="padding:10px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">'
+      +'<div class="card"><div class="card-label">Open positions P/L</div><div class="card-value" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+(tp>=0?'+':'')+fmt(tp)+'</div><div style="font-size:0.7rem;color:var(--text3)">on '+fmt(ti)+' cost</div></div>'
+      +'<div class="card"><div class="card-label">Sold lots (cost)</div><div class="card-value">'+fmt(cost)+'</div><div style="font-size:0.7rem;color:var(--text3)">'+closed.length+' lots · sell prices need log</div></div>'
+      +'<div class="card"><div class="card-label">Realized P/L</div><div style="font-size:0.8rem;color:var(--amber)">Needs your log (sell records)</div></div>'
+      +'</div><div style="padding:0 14px 12px;font-size:0.7rem;color:var(--text3)">Partly sold lots stay under open positions. Sold-lot cost comes from your saved history.</div></div>';
+  }
   function renderPortfolio(){
     if(!PF.length)return;let h='<div class="tw"><div class="tt">Holdings Overview <span class="badge">'+PF.length+' positions</span></div><div style="padding:8px 14px;font-size:0.75rem;color:var(--text3)">Tap a stock to see its individual buy transactions.</div><table><thead><tr><th>Stock</th><th class="r">Shares</th><th>BB Status</th><th class="r">Avg Buy</th><th class="r">Current</th><th class="r">P/L</th><th class="r">Value</th><th>Dividend</th></tr></thead><tbody>';
     for(const p of PF){const pc=p.pl>=0?'var(--green)':'var(--red)',bc=p.bm?'var(--green)':'var(--amber)',dd=p.dr?'<span class="chip cg">READY</span>':p.dp+'/'+p.df+'d';
@@ -1604,7 +1608,7 @@ const ST=(function(){
     }
     const tv=PF.reduce((s,p)=>s+p.cv,0),ti=PF.reduce((s,p)=>s+p.inv,0),tp=tv-ti,tpp=ti>0?tp/ti:0;
     h+='<tr class="totals-row"><td>TOTAL</td><td></td><td></td><td class="r">'+fmt(ti)+'</td><td></td><td class="r"><span style="color:'+(tp>=0?'var(--green)':'var(--red)')+';font-family:JetBrains Mono,monospace">'+fmt(tp)+'</span><br><span class="chip '+cC(tpp)+'">'+fP(tpp)+'</span></td><td class="r">'+fmt(tv)+'</td><td></td></tr></tbody></table></div>';
-    $('portfolioContent').innerHTML=h;
+    $('portfolioContent').innerHTML=profitCard()+h;
   }
   function togglePos(acr){if(!window._openPos)window._openPos={};window._openPos[acr]=!window._openPos[acr];renderPortfolio()}
   function renderTx(){
@@ -2989,7 +2993,7 @@ const CR=(function(){
       OFFENSES=(ps&&ps.personalstats&&ps.personalstats.crimes&&ps.personalstats.crimes.offenses)||{};
       ITEMS={};ITEMS_BY_NAME={};
       for(const i of ((it&&it.items)||[])){const v=i.value||{};ITEMS[i.id]={name:i.name,market:v.market_price||0};ITEMS_BY_NAME[i.name.toLowerCase()]={id:i.id,market:v.market_price||0}}
-      render();renderList();
+      render();
       await loadCrimeStats(k,force);
       renderAuto();
       $('crStatusDot').className='status-dot ok';$('crStatusText').textContent='Crime data loaded';
@@ -3033,7 +3037,7 @@ const CR=(function(){
   }
 
   // ---- Automatic ranking from Torn's own crime data (lifetime, per crime) ----
-  let CRIME_CAT=[],CRIME_DATA={},CR_OPEN={};
+  let CRIME_CAT=[],CRIME_DATA={},CR_OPEN={},CR_STEPS={};
   async function getJ(u){try{const r=await fetch(u);return await r.json()}catch(e){return null}}
   async function loadCrimeStats(k,force){
     try{
@@ -3065,7 +3069,15 @@ const CR=(function(){
       perCash:nerve?cash/nerve:0,perItem:nerve?items/nerve:0,perAll:nerve?(cash+items)/nerve:0,
       uniques:((s.uniques)||[]).length,uniqTotal:c.unique_outcomes_count||0};
   }
+  // Expanded crime: per-action $/nerve isn't in Torn's stats, so steps and success rates sit behind a toggle (backlog)
   function subsHTML(c){
+    const btn='<button onclick="CR.toggleSteps('+c.id+')" style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:0.7rem;color:var(--text2);cursor:pointer">'+(CR_STEPS[c.id]?'Hide':'Show')+' steps &amp; success</button>';
+    let h='<tr><td colspan="8" style="padding:6px 14px 10px 26px"><div style="font-size:0.72rem;color:var(--text3);margin-bottom:6px">Which action pays best per nerve needs your crime log, since Torn\'s stats only give cash and items per crime.</div>'+btn+'</td></tr>';
+    if(CR_STEPS[c.id])h+=stepsTable(c);
+    return h;
+  }
+  function toggleSteps(id){CR_STEPS[id]=!CR_STEPS[id];renderAuto()}
+  function stepsTable(c){
     const d=CRIME_DATA[c.id]||{};const subs=d.subs||[];
     const st=((d.stats||{}).attempts||{}).subcrimes||[];
     if(!subs.length&&!st.length)return '<tr><td colspan="8" style="padding:6px 14px 10px 26px;font-size:0.74rem;color:var(--text3)">No action breakdown for this crime.</td></tr>';
@@ -3185,7 +3197,7 @@ const CR=(function(){
     $('crList').innerHTML=h;
   }
 
-  return{refresh,render,renderList,addCrime,delCrime,updCrime,addDrop,updDrop,delDrop,renderAuto,toggleAuto};
+  return{refresh,render,renderAuto,toggleAuto,toggleSteps};
 })();
 
 const RV=(function(){
