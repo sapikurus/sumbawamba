@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v32</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v33</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -250,7 +250,7 @@ const TV=(function(){
   // Area codes VERIFIED against real purchase history (item vendor country vs logged area).
   // Confirmed: 3=Hawaii, 5=Japan, 6=China, 7=Argentina, 8=Switzerland, 9=Canada, 10=UK.
   // Unconfirmed codes are left out — an unknown code shows "Area N" rather than a wrong guess.
-  const AREA_MAP={1:'Torn',3:'Hawaii',5:'Japan',6:'China',7:'Argentina',8:'Switzerland',9:'Canada',10:'United Kingdom'};
+  const AREA_MAP={1:'Torn',3:'Hawaii',4:'South Africa',5:'Japan',6:'China',7:'Argentina',8:'Switzerland',9:'Canada',10:'United Kingdom'};
 
   // Award tiers
   const AWARDS_TIME=[{d:7,name:'Tourist'},{d:31,name:'Frequent Flyer'},{d:365,name:'Globetrotter'}];
@@ -518,8 +518,8 @@ const TV=(function(){
   function ctry(t){return t.country||LEARN[t.area]||AREA_MAP[t.area]||('Area '+t.area)}
   // Country of a trip derived from the items bought on it (authoritative via vendor country)
   function tripCountry(t,tb){
-    // A destination verified from the live travel status wins over the item-vendor guess
-    if(t.area!=null&&LEARN[t.area])return LEARN[t.area];
+    // The trip's destination ID comes first; item vendor countries only fill in when the ID is unknown
+    if(t.area!=null){const nm=LEARN[t.area]||AREA_MAP[t.area];if(nm)return nm}
     if(tb&&tb.length){
       // Use vendor country of the most-quantity item on this trip
       const byCountry={};
