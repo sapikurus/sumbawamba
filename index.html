@@ -128,7 +128,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 
 <!-- ====== HEADER ====== -->
 <header class="header"><div class="header-inner">
-  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v28</span></span></div>
+  <div class="logo"><span class="name">SUMBAWAMBA</span><span class="sub">torn helper <span style="opacity:0.5;font-size:0.85em">v29</span></span></div>
   <div class="page-nav">
     <button class="page-nav-btn active" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</button>
     <button class="page-nav-btn" onclick="switchPage('stocks',this)"><span class="nav-icon">📈</span> Stock Trader</button>
@@ -282,6 +282,13 @@ const TV=(function(){
 
   function renderCurrentTravel(t){
     if(!t){$('tvCurrentTravel').innerHTML='';return}
+    // Learn the ID for this destination: match the live trip to its logged depart entry by time
+    try{
+      if(t.destination&&t.destination!=='Torn'&&t.departed_at&&HISTORY&&HISTORY.travel){
+        const m=HISTORY.travel.find(x=>Math.abs(x.ts-t.departed_at)<=120);
+        if(m&&m.area!=null&&LEARN[m.area]!==t.destination){LEARN[m.area]=t.destination;localStorage.setItem('tv_learn',JSON.stringify(LEARN))}
+      }
+    }catch(e){}
     let h='<div class="tw"><div class="tt">✈️ Current Status</div><div style="padding:16px">';
     if(t.time_left>0){
       // Mid-flight — could be outbound (dest != Torn) or the return leg (dest = Torn)
@@ -506,9 +513,13 @@ const TV=(function(){
       window._syncRound=0;
     }catch(e){$('tvStatusText').textContent='Sync unavailable';$('tvSyncInfo').textContent='⚠ Sync needs Netlify functions deployed (live data still works)'}
   }
-  function ctry(t){return t.country||AREA_MAP[t.area]||('Area '+t.area)}
+  // IDs learned from the live travel status (which gives the real destination name)
+  let LEARN={};try{LEARN=JSON.parse(localStorage.getItem('tv_learn')||'{}')}catch(e){LEARN={}}
+  function ctry(t){return t.country||LEARN[t.area]||AREA_MAP[t.area]||('Area '+t.area)}
   // Country of a trip derived from the items bought on it (authoritative via vendor country)
   function tripCountry(t,tb){
+    // A destination verified from the live travel status wins over the item-vendor guess
+    if(t.area!=null&&LEARN[t.area])return LEARN[t.area];
     if(tb&&tb.length){
       // Use vendor country of the most-quantity item on this trip
       const byCountry={};
@@ -679,7 +690,7 @@ const TV=(function(){
       const tbb=tb[t.id]||[];const c=tripCountry(t,tbb);let tp=0;for(const b of tbb){const s=bestSell(b.item,disc);tp+=(s.val-b.costEach)*b.qty}
       const dt=new Date(t.ts*1000);const isOpen=window._openTrips&&window._openTrips[t.id];const pcc=tp>0?'var(--green)':tp<0?'var(--red)':'var(--text3)';
       h+='<div style="border-bottom:1px solid rgba(42,53,80,0.4)"><div onclick="TV.toggleTrip(\''+t.id+'\')" style="cursor:pointer;padding:10px 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
-      h+='<span style="color:var(--text3);font-size:0.75rem">'+(isOpen?'▼':'▶')+'</span><span style="font-weight:600;min-width:80px">'+c+'</span>';
+      h+='<span style="color:var(--text3);font-size:0.75rem">'+(isOpen?'▼':'▶')+'</span><span style="font-weight:600;min-width:80px">'+c+' <span style="font-size:0.62rem;color:var(--text3);font-weight:400">area '+t.area+'</span></span>';
       h+='<span style="color:var(--text3);font-size:0.75rem;flex:1">'+dt.toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' GMT · '+fmtDur(t.duration||0)+'</span>';
       h+='<span style="font-size:0.76rem;color:var(--text2)">'+tbb.length+' item'+(tbb.length>1?'s':'')+'</span>';
       h+='<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+pcc+';min-width:80px;text-align:right">'+(tp>=0?'+':'')+fmt(tp)+'</span></div>';
